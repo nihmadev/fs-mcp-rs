@@ -1,5 +1,14 @@
 # fs-mcp-rs
 
+[![Crates.io](https://img.shields.io/crates/v/fs-mcp-rs?logo=rust&label=crates.io)](https://crates.io/crates/fs-mcp-rs)
+[![docs.rs](https://img.shields.io/docsrs/fs-mcp-rs?logo=docs.rs&label=docs.rs)](https://docs.rs/fs-mcp-rs)
+[![License](https://img.shields.io/crates/l/fs-mcp-rs?label=license)](LICENSE)
+[![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org)
+[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-6f42c1)](https://modelcontextprotocol.io)
+
+[![English](https://img.shields.io/badge/lang-English-lightgrey)](README.md)
+[![Русский](https://img.shields.io/badge/lang-Русский-blue)](README_RU.md)
+
 A fast, configurable filesystem server for the Model Context Protocol (MCP), written in Rust.
 
 `fs-mcp-rs` gives an MCP client a small set of filesystem tools while keeping access inside directories selected by the operator. It has no implicit filesystem root, no built-in personal path, and no writable default. The server starts only when you provide a configuration file.
@@ -188,6 +197,83 @@ The MCP endpoint is:
 ```text
 http://127.0.0.1:8000/mcp
 ```
+
+## Expose the server through a secure tunnel
+
+For testing with a remote MCP client, keep `fs-mcp-rs` bound to loopback and expose it through a tunnel. Start the server first:
+
+```console
+fs-mcp-rs --config ./fs-mcp-rs.toml
+```
+
+Verify the local endpoint before creating a tunnel:
+
+```console
+curl http://127.0.0.1:8000/health
+```
+
+> [!CAUTION]
+> A public tunnel URL gives remote clients a path to the tools and filesystem roots allowed by your configuration. Start with `read_only = true`, grant only narrowly scoped roots, never expose secrets, and stop the tunnel when it is no longer needed. Quick tunnels are intended for development—not permanent production hosting.
+
+### Cloudflare Tunnel
+
+Install [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/), then create a temporary Quick Tunnel:
+
+```console
+cloudflared tunnel --url http://127.0.0.1:8000
+```
+
+`cloudflared` prints a temporary URL similar to `https://random-name.trycloudflare.com`. Use the MCP endpoint with `/mcp` appended:
+
+```text
+https://random-name.trycloudflare.com/mcp
+```
+
+For a stable hostname, create a named Cloudflare Tunnel, map a DNS hostname to it, and route that hostname to `http://127.0.0.1:8000`. Protect long-lived deployments with Cloudflare Access or another authentication layer.
+
+### ngrok
+
+Install [`ngrok`](https://ngrok.com/download), authenticate its CLI if required by your account, and start an HTTP tunnel:
+
+```console
+ngrok http 8000
+```
+
+Use the HTTPS forwarding URL shown by ngrok and append `/mcp`:
+
+```text
+https://example.ngrok-free.app/mcp
+```
+
+The local inspection UI is normally available at `http://127.0.0.1:4040`. It can expose request details, so keep it local and do not share it publicly.
+
+### Connect a remote MCP client
+
+Use the public HTTPS URL as an HTTP/Streamable HTTP MCP server:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "transport": "http",
+      "url": "https://your-public-host.example/mcp"
+    }
+  }
+}
+```
+
+Test both endpoints after the tunnel starts:
+
+```console
+curl https://your-public-host.example/health
+curl -i https://your-public-host.example/mcp
+```
+
+A non-`200` response from a plain `GET /mcp` can be expected because MCP communication uses protocol requests; the important checks are that `/health` is reachable and that the MCP client can initialize a session.
+
+### Production hosting
+
+For a persistent deployment, prefer a private network/VPN or a named authenticated tunnel. Run `fs-mcp-rs` under a dedicated low-privilege account and a service manager, keep it bound to loopback, terminate TLS at the tunnel or reverse proxy, restrict client access, pin the configuration path, and monitor logs. Do not rely on an unprotected public URL as the only security boundary.
 
 ## Configure an MCP client
 

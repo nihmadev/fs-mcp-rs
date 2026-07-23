@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later"
 readme = "README.md"
 keywords = ["mcp", "filesystem", "json-rpc", "server", "ai"]
 categories = ["command-line-utilities", "filesystem", "web-programming::http-server"]
-include = ["/src/**", "/tests/**", "/configs/example.toml", "/README.md", "/LICENSE"]
+include = ["/src/**", "/tests/**", "/configs/example.toml", "/README.md", "/README_RU.md", "/LICENSE"]
 
 [[bin]]
 name = "fs-mcp-rs"
