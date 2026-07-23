@@ -1,0 +1,103 @@
+[package]
+name = "fs-mcp-rs"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "A fast, configurable filesystem MCP server with explicit root isolation and bounded I/O"
+license = "GPL-3.0-or-later"
+readme = "README.md"
+keywords = ["mcp", "filesystem", "json-rpc", "server", "ai"]
+categories = ["command-line-utilities", "filesystem", "web-programming::http-server"]
+include = ["/src/**", "/tests/**", "/configs/example.toml", "/README.md", "/LICENSE"]
+
+[[bin]]
+name = "fs-mcp-rs"
+path = "src/main.rs"
+
+[workspace]
+members = ["crates/benchmarks"]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.85"
+
+[dependencies]
+anyhow = { version = "1.0", default-features = false }
+axum = { version = "0.8", default-features = false, features = ["json", "tokio", "http1"] }
+blake3 = { version = "1.8", default-features = false }
+clap = { version = "4.5", default-features = false, features = ["derive", "env", "std"] }
+ignore = { version = "0.4", default-features = false }
+globset = { version = "0.4", default-features = false }
+regex = { version = "1.11", default-features = false, features = ["std", "perf", "unicode-case"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["std", "raw_value"] }
+thiserror = { version = "2.0", default-features = false }
+tokio = { version = "1.0", default-features = false, features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "signal",
+    "time",
+    "sync",
+    "io-util"
+] }
+toml = { version = "0.9", default-features = false, features = ["display", "parse", "serde"] }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "env-filter",
+    "fmt",
+    "json",
+    "ansi"
+] }
+tempfile = { version = "3.20", default-features = false }
+
+[workspace.dependencies]
+anyhow = { version = "1.0", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0", default-features = false }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+debug = false
+overflow-checks = false
+incremental = false
+
+[profile.size-optimized]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+debug = false
+overflow-checks = false
+incremental = false
+
+[profile.bench]
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+debug = false
+overflow-checks = false
+
+[profile.dev]
+opt-level = 0
+debug = true
+overflow-checks = true
+incremental = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dev-dependencies]
+tempfile = { version = "3.20", default-features = false }

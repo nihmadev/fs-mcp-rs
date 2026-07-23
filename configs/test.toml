@@ -1,0 +1,34 @@
+[server]
+host = "127.0.0.1"
+port = 18000
+max_concurrency = 4
+max_io_concurrency = 2
+
+[filesystem]
+roots = [".."]
+read_only = false
+max_read_bytes = 1048576
+max_write_bytes = 1048576
+follow_links = false
+# list_tree server bounds
+tree_max_depth = 8
+tree_max_entries = 1000
+tree_max_warnings = 32
+# apply_patch request and preview bounds
+patch_max_bytes = 1048576
+patch_preview_bytes = 16384
+
+[search]
+max_results = 100
+max_concurrency = 2
+worker_threads = 2
+regex_cache_capacity = 8
+include_hidden = false
+respect_gitignore = true
+
+[terminal]
+enabled = true
+max_concurrency = 1
+default_timeout_ms = 5000
+max_timeout_ms = 30000
+max_output_bytes = 1048576

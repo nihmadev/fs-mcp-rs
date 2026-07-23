@@ -1,0 +1,7 @@
+/target
+/.idea
+/.vscode
+*.log
+benchmark-results/
+.DS_Store
+Thumbs.db
