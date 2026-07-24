@@ -32,3 +32,11 @@ max_concurrency = 1
 default_timeout_ms = 5000
 max_timeout_ms = 30000
 max_output_bytes = 1048576
+max_read_bytes = 262144
+max_wait_ms = 30000
+session_retention_ms = 300000
+
+[oauth]
+enabled = true
+require_auth = false
+

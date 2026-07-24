@@ -37,3 +37,16 @@ max_concurrency = 2
 default_timeout_ms = 30000
 max_timeout_ms = 300000
 max_output_bytes = 4194304
+# Maximum output returned by one terminal_read call.
+max_read_bytes = 262144
+# Maximum long-poll duration accepted by terminal_read.
+max_wait_ms = 30000
+# Keep completed sessions available for this long.
+session_retention_ms = 300000
+
+[oauth]
+# Enables OAuth 2.0 / OpenID Connect metadata discovery and flow endpoints
+enabled = true
+# Require Bearer token authentication for /mcp requests
+require_auth = false
+

@@ -4,7 +4,7 @@
 //! containing the configuration file and rejects unsafe or nonsensical limits.
 
 use anyhow::{Context, Result, bail};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use serde::Deserialize;
 use std::{
     fs,
@@ -13,13 +13,91 @@ use std::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "fs-mcp-rs", version, about)]
+#[command(
+    name = "fs-mcp-rs",
+    version,
+    about = "Fast, secure filesystem Model Context Protocol (MCP) server",
+    long_about = "fs-mcp-rs is a high-performance Model Context Protocol (MCP) server providing bounded filesystem operations, parallel search, and optional terminal execution.\n\nQuickstart:\n  fs-mcp-rs init                 Run interactive setup wizard (arrow keys)\n  fs-mcp-rs serve                Start HTTP server (auto-detects config.toml)\n  fs-mcp-rs config snippet       Generate configuration for Claude Desktop / Cursor\n  fs-mcp-rs tools                List all available MCP tools\n"
+)]
 /// Command-line options accepted by the server binary.
 pub struct Cli {
+    #[command(subcommand)]
+    /// Subcommand to execute.
+    pub command: Option<Commands>,
+
     /// TOML configuration file. May also be set with FS_MCP_CONFIG.
-    #[arg(long, env = "FS_MCP_CONFIG", value_name = "FILE")]
-    /// Path to the TOML configuration file.
-    pub config: PathBuf,
+    #[arg(long, short, env = "FS_MCP_CONFIG", value_name = "FILE", global = true)]
+    pub config: Option<PathBuf>,
+}
+
+#[derive(Debug, Subcommand)]
+/// Available CLI subcommands.
+pub enum Commands {
+    /// Start the filesystem MCP HTTP server
+    Serve {
+        /// Path to TOML configuration file
+        #[arg(long, short, value_name = "FILE")]
+        config: Option<PathBuf>,
+    },
+    /// Run interactive terminal setup wizard (with arrow key selection)
+    Init {
+        /// Output path for generated configuration file
+        #[arg(long, short, value_name = "FILE", default_value = "config.toml")]
+        output: PathBuf,
+    },
+    /// Configuration tools and client integration snippet generator
+    Config {
+        #[command(subcommand)]
+        /// Subcommand for configuration management.
+        command: ConfigCommands,
+    },
+    /// List all available MCP tools provided by the server
+    Tools,
+}
+
+#[derive(Debug, Subcommand)]
+/// Configuration management subcommands.
+pub enum ConfigCommands {
+    /// Print annotated default TOML configuration to stdout
+    PrintExample,
+    /// Generate copy-paste JSON configuration for AI clients (Claude Desktop, Cursor, etc.)
+    Snippet {
+        /// Target configuration file path to reference in client config
+        #[arg(long, short, value_name = "FILE")]
+        config: Option<PathBuf>,
+    },
+    /// Validate configuration file and print summary of settings and permissions
+    Check {
+        /// Path to TOML configuration file to check
+        #[arg(long, short, value_name = "FILE")]
+        config: Option<PathBuf>,
+    },
+}
+
+/// Smart discovery for configuration file path.
+///
+/// Returns explicit path if provided, otherwise checks `FS_MCP_CONFIG` environment variable,
+/// and fallback candidate paths (`./config.toml`, `./configs/default.toml`, `./configs/example.toml`).
+pub fn resolve_config_path(explicit: Option<&Path>) -> Option<PathBuf> {
+    if let Some(path) = explicit {
+        return Some(path.to_path_buf());
+    }
+    if let Ok(env_path) = std::env::var("FS_MCP_CONFIG") {
+        if !env_path.trim().is_empty() {
+            return Some(PathBuf::from(env_path));
+        }
+    }
+    let candidates = [
+        PathBuf::from("config.toml"),
+        PathBuf::from("configs/default.toml"),
+        PathBuf::from("configs/example.toml"),
+    ];
+    for candidate in candidates {
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -34,6 +112,24 @@ pub struct Settings {
     pub search: Search,
     /// Child-process execution and session limits.
     pub terminal: Terminal,
+    #[serde(default)]
+    /// OAuth 2.0 / OIDC authentication and discovery settings.
+    pub oauth: OAuthSettings,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+/// OAuth 2.0 / OIDC authentication settings.
+pub struct OAuthSettings {
+    #[serde(default = "default_true")]
+    /// Whether OAuth endpoints and metadata discovery are enabled.
+    pub enabled: bool,
+    #[serde(default)]
+    /// Whether valid Bearer tokens are required to access /mcp.
+    pub require_auth: bool,
+    #[serde(default)]
+    /// Explicit issuer URI override (e.g. "http://localhost:8000").
+    pub issuer: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -122,6 +218,10 @@ pub struct Terminal {
     #[serde(default = "default_terminal_session_retention_ms")]
     /// Duration completed sessions remain queryable.
     pub session_retention_ms: u64,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_tree_max_depth() -> usize {
@@ -263,4 +363,17 @@ max_output_bytes = 1024
 "#;
         assert!(toml::from_str::<Settings>(input).is_err());
     }
+
+    #[test]
+    fn resolves_explicit_and_default_config_path() {
+        let explicit = Path::new("custom.toml");
+        assert_eq!(resolve_config_path(Some(explicit)), Some(PathBuf::from("custom.toml")));
+
+        let parsed = Cli::try_parse_from(["fs-mcp-rs", "init", "--output", "my_config.toml"]).unwrap();
+        match parsed.command {
+            Some(Commands::Init { output }) => assert_eq!(output, PathBuf::from("my_config.toml")),
+            _ => panic!("Expected Init subcommand"),
+        }
+    }
 }
+

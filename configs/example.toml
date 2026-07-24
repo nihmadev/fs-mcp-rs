@@ -43,3 +43,10 @@ max_read_bytes = 262144
 max_wait_ms = 30000
 # Keep completed sessions available for this long.
 session_retention_ms = 300000
+
+[oauth]
+# Enables OAuth 2.0 / OpenID Connect metadata discovery and flow endpoints
+enabled = true
+# Require Bearer token authentication for /mcp requests
+require_auth = false
+
