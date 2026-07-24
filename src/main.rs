@@ -16,6 +16,11 @@ mod server;
 mod stdio;
 mod tools;
 
+/// Binary entry point for `fs-mcp-rs`.
+///
+/// Directs structured tracing logs to `stderr` to keep `stdout` clear for JSON-RPC 2.0
+/// when running in STDIO transport mode. Automatically detects interactive terminal sessions
+/// vs non-interactive pipe execution to select STDIO or HTTP transport modes accordingly.
 #[tokio::main]
 async fn main() -> Result<()> {
     // Direct all tracing logs to stderr so stdout remains clean for JSON-RPC in STDIO mode
@@ -84,6 +89,8 @@ async fn main() -> Result<()> {
     }
 }
 
+/// Resolves configuration settings either from an explicit TOML file, auto-discovered TOML file,
+/// or positional CLI root path arguments falling back to default settings template.
 fn load_settings(explicit: Option<&Path>, root_paths: Vec<PathBuf>) -> Result<(Settings, Option<PathBuf>)> {
     if let Some(resolved) = resolve_config_path(explicit) {
         let settings = Settings::load(&resolved)?;

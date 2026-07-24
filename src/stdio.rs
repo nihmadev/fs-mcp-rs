@@ -1,9 +1,14 @@
+//! STDIO transport loop for line-delimited JSON-RPC 2.0 requests.
+//!
+//! Reads input line-by-line from `stdin`, processes requests asynchronously using
+//! [`handler::handle_request`], and writes newline-delimited JSON-RPC responses to `stdout`.
+
 use crate::{app::App, handler};
 use anyhow::Result;
 use fs_mcp_rs::protocol::Request as McpRequest;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, stdin, stdout};
 
-/// Runs the STDIO transport loop, reading JSON-RPC lines from `stdin` and writing responses to `stdout`.
+/// Runs the STDIO transport loop, reading line-delimited JSON-RPC 2.0 messages from `stdin` and returning responses on `stdout`.
 pub(crate) async fn serve(app: App) -> Result<()> {
     let stdin = stdin();
     let mut reader = BufReader::new(stdin).lines();

@@ -1,3 +1,5 @@
+//! Application state context shared across handlers and transports.
+
 use crate::oauth::OAuthStore;
 use anyhow::Result;
 use fs_mcp_rs::{
@@ -8,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 
 #[derive(Clone)]
-/// Shared services and concurrency gates for HTTP request handlers.
+/// Shared services and concurrency gates for HTTP and STDIO request handlers.
 pub(crate) struct App {
     pub(crate) fs: Filesystem,
     pub(crate) search: Searcher,

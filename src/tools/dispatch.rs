@@ -1,3 +1,8 @@
+//! Tool call dispatching, concurrency control, and tool execution logging.
+//!
+//! Maps tool calls to blocking implementations, enforces resource permits, and prints
+//! concise execution logs (`[OK] tool_name ...` / `[WARN] tool_name ...`) when `server.log_tools` is enabled.
+
 use super::catalog::tools;
 use crate::app::App;
 use fs_mcp_rs::{

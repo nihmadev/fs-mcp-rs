@@ -1,7 +1,15 @@
+//! Transport-agnostic JSON-RPC request dispatcher.
+//!
+//! Handles core MCP protocol requests (`initialize`, `ping`, `tools/list`, `tools/call`)
+//! independently of whether the underlying transport is HTTP POST or STDIO streaming.
+
 use crate::{app::App, tools};
 use fs_mcp_rs::protocol::{Request as McpRequest, Response as McpResponse, negotiate_protocol};
 use serde_json::{Value, json};
 
+/// Dispatches a incoming MCP JSON-RPC request against the application state and returns an optional response.
+///
+/// Returns `None` for notification messages or requests without an ID.
 pub(crate) async fn handle_request(app: &App, request: McpRequest) -> Option<McpResponse> {
     let id = request.id.clone();
     if request.jsonrpc != "2.0" {

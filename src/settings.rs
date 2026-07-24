@@ -151,7 +151,7 @@ pub struct Server {
     /// Maximum concurrent non-search blocking operations.
     pub max_io_concurrency: usize,
     #[serde(default = "default_true")]
-    /// Whether short tool invocation logging ([OK]/[WARN]) is printed.
+    /// Whether short tool invocation logging (`[OK]` / `[WARN]`) is printed.
     pub log_tools: bool,
 }
 

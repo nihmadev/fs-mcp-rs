@@ -1,3 +1,7 @@
+//! HTTP transport server using Axum framework.
+//!
+//! Exposes `/mcp` HTTP POST endpoint, `/health` check, CORS middleware, and optional OAuth 2.0 / OIDC endpoints.
+
 use crate::{app::App, oauth};
 use anyhow::Result;
 use axum::{
@@ -13,6 +17,7 @@ use serde_json::json;
 use std::path::Path;
 use tokio::net::TcpListener;
 
+/// Starts the HTTP server listener with configured routes and graceful shutdown handler.
 pub(crate) async fn serve(app: App, config_path: &Path) -> Result<()> {
     let address = (app.settings.server.host, app.settings.server.port);
     let mut router = Router::new()

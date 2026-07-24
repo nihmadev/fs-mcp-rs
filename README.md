@@ -25,8 +25,9 @@ Users do not need to install or understand a graph of internal crates. The bench
 
 ## Features
 
-- MCP over JSON-RPC HTTP POST.
-- Explicit allow-list of one or more filesystem roots.
+- MCP over JSON-RPC HTTP POST and line-delimited STDIO (stdin/stdout).
+- Zero-install execution via `npx fs-mcp-rs`.
+- Explicit allow-list of one or more filesystem roots (via CLI positional arguments or TOML config).
 - Read-only mode for safe deployments.
 - Optional write, move, edit, directory creation, and removal operations.
 - Bounded reads, writes, search results, and concurrency.
@@ -36,15 +37,26 @@ Users do not need to install or understand a graph of internal crates. The bench
 - Atomic file replacement and BLAKE3 hashes.
 - Optional arbitrary terminal command execution with time and output limits.
 - Persistent terminal sessions with incremental output cursors, long polling, stdin, process-tree termination, retention, and bounded buffers.
+- Concise tool execution logging (`[OK]` / `[WARN]`).
 - No telemetry and no automatic network discovery.
 
 ## Requirements
 
-- Rust 1.85 or newer when building from source.
-- An MCP client that can connect to a Streamable HTTP/JSON-RPC endpoint.
-- A configuration file created and reviewed by the person running the server.
+- Node.js (v18+) for `npx` execution, or Rust 1.85+ when building from source.
+- An MCP client that can connect via STDIO JSON-RPC or Streamable HTTP/JSON-RPC endpoint.
+- A configuration file or explicit root paths passed to the server.
 
 ## Installation
+
+### Via npx (Zero Installation)
+
+The easiest way to run `fs-mcp-rs` with any MCP client (such as Claude Desktop or Cursor) is using `npx`:
+
+```console
+npx fs-mcp-rs /path/to/project
+```
+
+The npm package automatically downloads the appropriate precompiled binary for your operating system and architecture (Windows x64, Linux x64, macOS x64/arm64).
 
 ### From crates.io
 
@@ -56,7 +68,7 @@ fs-mcp-rs --version
 ### From source
 
 ```console
-git clone YOUR_REPOSITORY_URL
+git clone https://github.com/nihmadev/fs-mcp-rs.git
 cd fs-mcp-rs
 cargo build --release
 ```
@@ -126,12 +138,12 @@ Relative roots are resolved relative to the directory containing the configurati
 - `port`: TCP port for `/health` and `/mcp`.
 - `max_concurrency`: maximum number of MCP requests processed at once.
 - `max_io_concurrency`: maximum number of simultaneous non-search filesystem jobs.
+- `log_tools`: whether concise tool execution logging (`[OK]` / `[WARN]`) is printed (default: `true`).
 
 #### `[filesystem]`
 
 - `roots`: non-empty list of allowed directories. Every requested path must resolve inside one of them.
 - `read_only`: when `true`, all mutating tools are rejected.
-- `max_read_bytes`: largest permitted `read_file` response.
 - `max_write_bytes`: largest permitted `write_file` or resulting `edit_text` content.
 - `follow_links`: whether paths containing symbolic links may be followed. Leave this `false` unless you have reviewed the consequences.
 
@@ -161,6 +173,18 @@ Unknown fields and zero-valued safety limits are rejected. This catches misspell
 
 ## Start the server
 
+### Positional root paths (Quickstart)
+
+Start directly by specifying allowed filesystem directories on the command line:
+
+```console
+fs-mcp-rs /home/alice/project1 /home/alice/project2
+```
+
+If no configuration file or positional roots are passed, `fs-mcp-rs` uses default settings scoped to the current working directory.
+
+### With a configuration file
+
 Pass the configuration explicitly:
 
 ```console
@@ -180,7 +204,12 @@ $env:FS_MCP_CONFIG = "C:\config\fs-mcp-rs.toml"
 fs-mcp-rs
 ```
 
-Check that it is alive:
+### Transport Modes (STDIO vs HTTP)
+
+- **STDIO Mode**: Activated automatically when stdout/stdin are non-interactive pipes (e.g. when spawned as an MCP subprocess) or when passing `--stdio`. Structured logs are written to `stderr` to keep `stdout` clean for line-delimited JSON-RPC messages.
+- **HTTP Mode**: Activated by default during interactive execution. Listens on the configured host/port for `/health` and `/mcp` endpoints.
+
+Check HTTP health:
 
 ```console
 curl http://127.0.0.1:8000/health
@@ -277,9 +306,39 @@ For a persistent deployment, prefer a private network/VPN or a named authenticat
 
 ## Configure an MCP client
 
-Start `fs-mcp-rs` as a long-running service, then add an HTTP MCP server in your client using the `/mcp` URL. Product configuration formats differ, so use the client documentation for the exact field names.
+`fs-mcp-rs` can be configured as a local STDIO subprocess or a remote/local HTTP service in MCP clients like Claude Desktop, Cursor, VS Code, or Windsurf.
 
-Generic example:
+### Option A: STDIO Transport with npx (Recommended for Claude / Cursor)
+
+No pre-installation required:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "fs-mcp-rs", "/path/to/allowed/directory"]
+    }
+  }
+}
+```
+
+Or using an installed binary with explicit `--stdio`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "fs-mcp-rs",
+      "args": ["--stdio", "/path/to/allowed/directory"]
+    }
+  }
+}
+```
+
+### Option B: HTTP Transport
+
+Start `fs-mcp-rs` as a long-running service, then point your client to the `/mcp` HTTP endpoint:
 
 ```json
 {
@@ -292,7 +351,7 @@ Generic example:
 }
 ```
 
-Do not expose the endpoint to an untrusted network. The server controls filesystem scope, but it does not replace host authentication, TLS, a firewall, or an authenticated reverse proxy.
+Do not expose HTTP endpoints to untrusted networks without authentication or TLS.
 
 ## Available tools
 
@@ -389,13 +448,24 @@ The following optional `[filesystem]` fields have validated defaults, so existin
 
 ## Logging
 
-Set `RUST_LOG` to control structured logs:
+### Structured tracing logs
+
+All structured tracing logs are printed to `stderr` to ensure `stdout` remains clean for JSON-RPC 2.0 frames when running in STDIO mode. Set `RUST_LOG` to control verbosity:
 
 ```console
 RUST_LOG=info fs-mcp-rs --config ./fs-mcp-rs.toml
 ```
 
 Use `debug` only while troubleshooting because paths may appear in diagnostic output.
+
+### Tool Call Execution Logging
+
+When `log_tools = true` (the default), `fs-mcp-rs` logs a single line summarizing each tool invocation:
+
+- **Success**: `[OK] read_file src/main.rs (3 ms)`
+- **Warning/Error**: `[WARN] read_file outside/allowed/path - OUTSIDE_ALLOWED_ROOT: path outside allowed roots (0 ms)`
+
+Tool logging can be disabled in your TOML config under `[server]`: `log_tools = false`.
 
 ## Development and release validation
 
@@ -409,7 +479,7 @@ cargo test --workspace
 cargo publish --dry-run -p fs-mcp-rs
 ```
 
-On Windows, `scripts\build.cmd` runs the same checks. A real crates.io release should also pass CI on Windows, Linux, and macOS and should be tested against at least one actual MCP client.
+On Windows, `scripts\build.cmd` runs the same checks. Continuous integration (`.github/workflows/ci.yml`) runs formatting, linting, and tests on Ubuntu, macOS, and Windows runners. GitHub Actions release workflow (`.github/workflows/release.yml`) builds precompiled binary archives for all major platforms and releases them alongside the npm package.
 
 Benchmark methodology is documented in `BENCHMARKS.md`. Performance claims should be accompanied by raw results, machine details, configuration, and commit hashes.
 
