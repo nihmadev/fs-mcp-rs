@@ -32,12 +32,9 @@ pub fn run_wizard(output_path: &Path) -> Result<PathBuf> {
         "Read-Only Mode (Safe mode - disable all file mutations)",
     ];
 
-    let selected_mode = Select::new(
-        "Select Filesystem Access Mode:",
-        read_only_options,
-    )
-    .prompt()
-    .context("Wizard cancelled")?;
+    let selected_mode = Select::new("Select Filesystem Access Mode:", read_only_options)
+        .prompt()
+        .context("Wizard cancelled")?;
 
     let read_only = selected_mode.starts_with("Read-Only");
 
@@ -47,12 +44,10 @@ pub fn run_wizard(output_path: &Path) -> Result<PathBuf> {
         "Enabled (Warning: allows AI clients to run shell commands)",
     ];
 
-    let selected_terminal = Select::new(
-        "Select Terminal Command Execution Mode:",
-        terminal_options,
-    )
-    .prompt()
-    .context("Wizard cancelled")?;
+    let selected_terminal =
+        Select::new("Select Terminal Command Execution Mode:", terminal_options)
+            .prompt()
+            .context("Wizard cancelled")?;
 
     let terminal_enabled = selected_terminal.starts_with("Enabled");
 
@@ -62,12 +57,9 @@ pub fn run_wizard(output_path: &Path) -> Result<PathBuf> {
         "Disabled (Quiet mode - no tool call logs)",
     ];
 
-    let selected_log = Select::new(
-        "Select Tool Call Logging Mode:",
-        log_options,
-    )
-    .prompt()
-    .context("Wizard cancelled")?;
+    let selected_log = Select::new("Select Tool Call Logging Mode:", log_options)
+        .prompt()
+        .context("Wizard cancelled")?;
 
     let log_tools = selected_log.starts_with("Enabled");
 
@@ -154,15 +146,23 @@ require_auth = false
         }
     }
 
-    fs::write(&final_output_path, config_content)
-        .with_context(|| format!("Failed to write configuration to {}", final_output_path.display()))?;
+    fs::write(&final_output_path, config_content).with_context(|| {
+        format!(
+            "Failed to write configuration to {}",
+            final_output_path.display()
+        )
+    })?;
 
-    println!("\n[OK] Configuration successfully saved to: {}", final_output_path.display());
+    println!(
+        "\n[OK] Configuration successfully saved to: {}",
+        final_output_path.display()
+    );
 
-    let show_snippets = Confirm::new("Would you like to view AI client configuration snippets now?")
-        .with_default(true)
-        .prompt()
-        .unwrap_or(false);
+    let show_snippets =
+        Confirm::new("Would you like to view AI client configuration snippets now?")
+            .with_default(true)
+            .prompt()
+            .unwrap_or(false);
 
     if show_snippets {
         print_client_snippets(&final_output_path, "fs-mcp-rs");

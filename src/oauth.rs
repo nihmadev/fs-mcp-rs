@@ -45,8 +45,16 @@ fn base64_url_nopad(data: &[u8]) -> String {
     let mut i = 0;
     while i < data.len() {
         let b0 = data[i] as usize;
-        let b1 = if i + 1 < data.len() { data[i + 1] as usize } else { 0 };
-        let b2 = if i + 2 < data.len() { data[i + 2] as usize } else { 0 };
+        let b1 = if i + 1 < data.len() {
+            data[i + 1] as usize
+        } else {
+            0
+        };
+        let b2 = if i + 2 < data.len() {
+            data[i + 2] as usize
+        } else {
+            0
+        };
         let triple = (b0 << 16) | (b1 << 8) | b2;
         out.push(ALPHABET[(triple >> 18) & 63] as char);
         out.push(ALPHABET[(triple >> 12) & 63] as char);
@@ -124,7 +132,9 @@ impl OAuthStore {
             client.client_secret = Some(format!("secret_{}", random_hex(16)));
         }
         let mut guard = self.inner.write().expect("lock poisoned");
-        guard.clients.insert(client.client_id.clone(), client.clone());
+        guard
+            .clients
+            .insert(client.client_id.clone(), client.clone());
         client
     }
 
@@ -179,7 +189,9 @@ impl OAuthStore {
         };
         let mut guard = self.inner.write().expect("lock poisoned");
         guard.tokens.insert(access_token, token_info.clone());
-        guard.refresh_tokens.insert(refresh_token, token_info.clone());
+        guard
+            .refresh_tokens
+            .insert(refresh_token, token_info.clone());
         token_info
     }
 
@@ -201,14 +213,21 @@ pub fn get_issuer_url(app: &App, headers: &HeaderMap) -> String {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     if !host.is_empty() {
-        let scheme = if headers.get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https") {
+        let scheme = if headers
+            .get("x-forwarded-proto")
+            .and_then(|v| v.to_str().ok())
+            == Some("https")
+        {
             "https"
         } else {
             "http"
         };
         return format!("{scheme}://{host}");
     }
-    format!("http://{}:{}", app.settings.server.host, app.settings.server.port)
+    format!(
+        "http://{}:{}",
+        app.settings.server.host, app.settings.server.port
+    )
 }
 
 pub async fn oauth_authorization_server_metadata(
@@ -231,10 +250,7 @@ pub async fn oauth_authorization_server_metadata(
     }))
 }
 
-pub async fn openid_configuration(
-    State(app): State<App>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+pub async fn openid_configuration(State(app): State<App>, headers: HeaderMap) -> impl IntoResponse {
     let issuer = get_issuer_url(&app, &headers);
     Json(json!({
         "issuer": issuer,
@@ -288,8 +304,12 @@ pub async fn register_client(
         client_secret: None,
         redirect_uris: req.redirect_uris.unwrap_or_default(),
         client_name: req.client_name.clone(),
-        grant_types: req.grant_types.unwrap_or_else(|| vec!["authorization_code".to_string()]),
-        response_types: req.response_types.unwrap_or_else(|| vec!["code".to_string()]),
+        grant_types: req
+            .grant_types
+            .unwrap_or_else(|| vec!["authorization_code".to_string()]),
+        response_types: req
+            .response_types
+            .unwrap_or_else(|| vec!["code".to_string()]),
         scope: req.scope,
         issued_at: now,
     });
@@ -401,9 +421,21 @@ fn base64_decode(input: &str) -> Option<Vec<u8>> {
             ALPHABET.iter().position(|&c| c == b).map(|p| p as u8)
         };
         let b0 = pos(bytes[i])?;
-        let b1 = if i + 1 < bytes.len() { pos(bytes[i + 1])? } else { 0 };
-        let b2 = if i + 2 < bytes.len() { pos(bytes[i + 2])? } else { 0 };
-        let b3 = if i + 3 < bytes.len() { pos(bytes[i + 3])? } else { 0 };
+        let b1 = if i + 1 < bytes.len() {
+            pos(bytes[i + 1])?
+        } else {
+            0
+        };
+        let b2 = if i + 2 < bytes.len() {
+            pos(bytes[i + 2])?
+        } else {
+            0
+        };
+        let b3 = if i + 3 < bytes.len() {
+            pos(bytes[i + 3])?
+        } else {
+            0
+        };
 
         let triple = ((b0 as u32) << 18) | ((b1 as u32) << 12) | ((b2 as u32) << 6) | (b3 as u32);
         out.push(((triple >> 16) & 0xFF) as u8);
@@ -441,8 +473,10 @@ pub async fn token_endpoint(
             if let Some(decoded) = base64_decode(basic.trim()) {
                 if let Ok(str_val) = String::from_utf8(decoded) {
                     if let Some((id, secret)) = str_val.split_once(':') {
-                        map.entry("client_id".to_string()).or_insert_with(|| id.to_string());
-                        map.entry("client_secret".to_string()).or_insert_with(|| secret.to_string());
+                        map.entry("client_id".to_string())
+                            .or_insert_with(|| id.to_string());
+                        map.entry("client_secret".to_string())
+                            .or_insert_with(|| secret.to_string());
                     }
                 }
             }
@@ -499,7 +533,10 @@ pub async fn token_endpoint(
 
         if let Some(ref challenge) = auth_code.code_challenge {
             let verifier = map.get("code_verifier").map(|s| s.as_str()).unwrap_or("");
-            let method = auth_code.code_challenge_method.as_deref().unwrap_or("plain");
+            let method = auth_code
+                .code_challenge_method
+                .as_deref()
+                .unwrap_or("plain");
 
             let valid = match method {
                 "S256" => {
@@ -511,7 +548,12 @@ pub async fn token_endpoint(
             };
 
             if !valid {
-                tracing::warn!(verifier, challenge, method, "PKCE validation failed in token_endpoint");
+                tracing::warn!(
+                    verifier,
+                    challenge,
+                    method,
+                    "PKCE validation failed in token_endpoint"
+                );
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(json!({"error": "invalid_grant", "error_description": "PKCE verification failed"})),
@@ -541,10 +583,7 @@ pub async fn token_endpoint(
         .into_response()
 }
 
-pub async fn userinfo_endpoint(
-    State(_app): State<App>,
-    headers: HeaderMap,
-) -> impl IntoResponse {
+pub async fn userinfo_endpoint(State(_app): State<App>, headers: HeaderMap) -> impl IntoResponse {
     let auth_header = headers.get("authorization").and_then(|v| v.to_str().ok());
     if auth_header.is_none() {
         return (
@@ -559,7 +598,7 @@ pub async fn userinfo_endpoint(
         "name": "FS MCP User",
         "preferred_username": "mcp-user"
     }))
-        .into_response()
+    .into_response()
 }
 
 pub async fn jwks_endpoint() -> impl IntoResponse {

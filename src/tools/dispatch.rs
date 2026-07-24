@@ -77,7 +77,10 @@ pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String>
             let err_msg = "server is shutting down".to_string();
             if app.settings.server.log_tools {
                 let ms = total_started.elapsed().as_millis();
-                println!("[WARN] {} {} - SERVER_SHUTDOWN: {} ({} ms)", tool_name, arg_summary, err_msg, ms);
+                println!(
+                    "[WARN] {} {} - SERVER_SHUTDOWN: {} ({} ms)",
+                    tool_name, arg_summary, err_msg, ms
+                );
             }
             return Err(err_msg);
         }
@@ -111,9 +114,15 @@ pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String>
             if app.settings.server.log_tools {
                 let code = error_code(&err_msg);
                 if arg_summary.is_empty() {
-                    println!("[WARN] {} - {}: {} ({} ms)", tool_name, code, err_msg, total_ms);
+                    println!(
+                        "[WARN] {} - {}: {} ({} ms)",
+                        tool_name, code, err_msg, total_ms
+                    );
                 } else {
-                    println!("[WARN] {} {} - {}: {} ({} ms)", tool_name, arg_summary, code, err_msg, total_ms);
+                    println!(
+                        "[WARN] {} {} - {}: {} ({} ms)",
+                        tool_name, arg_summary, code, err_msg, total_ms
+                    );
                 }
             }
             Err(err_msg)
@@ -121,7 +130,10 @@ pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String>
         Err(join_err) => {
             let err_msg = format!("blocking task failed: {join_err}");
             if app.settings.server.log_tools {
-                println!("[WARN] {} {} - INTERNAL_ERROR: {} ({} ms)", tool_name, arg_summary, err_msg, total_ms);
+                println!(
+                    "[WARN] {} {} - INTERNAL_ERROR: {} ({} ms)",
+                    tool_name, arg_summary, err_msg, total_ms
+                );
             }
             Err(err_msg)
         }

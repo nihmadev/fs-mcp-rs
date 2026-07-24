@@ -71,10 +71,11 @@ fn get_or_prompt_config(explicit: Option<&Path>) -> Result<PathBuf> {
 
     if std::io::stdout().is_terminal() && std::io::stdin().is_terminal() {
         print_no_config_banner();
-        let prompt_wizard = inquire::Confirm::new("Would you like to run the interactive setup wizard now?")
-            .with_default(true)
-            .prompt()
-            .unwrap_or(false);
+        let prompt_wizard =
+            inquire::Confirm::new("Would you like to run the interactive setup wizard now?")
+                .with_default(true)
+                .prompt()
+                .unwrap_or(false);
 
         if prompt_wizard {
             return run_wizard(Path::new("config.toml"));
@@ -91,4 +92,3 @@ async fn run_server(config_path: PathBuf) -> Result<()> {
     let app = app::App::new(settings)?;
     server::serve(app, &config_path).await
 }
-

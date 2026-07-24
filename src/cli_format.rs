@@ -12,19 +12,33 @@ pub fn default_config_toml() -> &'static str {
 /// Formats and prints a list of all available MCP tools provided by the server.
 pub fn print_tools_catalog(tools: &[Tool]) {
     println!("\n================================================================================");
-    println!("                    fs-mcp-rs Available MCP Tools Catalog                            ");
+    println!(
+        "                    fs-mcp-rs Available MCP Tools Catalog                            "
+    );
     println!("================================================================================");
-    println!("{:<22} {:<14} {}", "TOOL NAME", "SAFETY LEVEL", "DESCRIPTION");
+    println!("{:<22} {:<14} DESCRIPTION", "TOOL NAME", "SAFETY LEVEL");
     println!("{:-<22} {:-<14} {:-<45}", "", "", "");
 
     for tool in tools {
         let badge = if let Some(ref ann) = tool.annotations {
-            if ann.get("readOnlyHint").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if ann
+                .get("readOnlyHint")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 "[READ-ONLY]"
-            } else if ann.get("openWorldHint").and_then(|v| v.as_bool()).unwrap_or(false) {
+            } else if ann
+                .get("openWorldHint")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 "[DANGEROUS]"
-            } else if ann.get("destructiveHint").and_then(|v| v.as_bool()).unwrap_or(false) {
-                "[MUTATING]"
+            } else if ann
+                .get("destructiveHint")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                "[DESTRUCTIVE]"
             } else {
                 "[MUTATING]"
             }
@@ -81,7 +95,9 @@ pub fn print_client_snippets(config_path: &Path, exe_name: &str) {
 }}"#
     );
     println!("--------------------------------------------------------------------------------");
-    println!("\nTip: Make sure `fs-mcp-rs` is in your PATH or specify the full path to the executable.\n");
+    println!(
+        "\nTip: Make sure `fs-mcp-rs` is in your PATH or specify the full path to the executable.\n"
+    );
 }
 
 /// Prints a human-readable summary of settings and security boundaries.
@@ -90,12 +106,46 @@ pub fn print_config_summary(settings: &Settings, config_path: &Path) {
     println!("                    fs-mcp-rs Configuration Summary                             ");
     println!("================================================================================");
     println!("Config File Path : {}", config_path.display());
-    println!("Server Address   : http://{}:{}", settings.server.host, settings.server.port);
-    println!("Read-Only Mode   : {}", if settings.filesystem.read_only { "YES (Safe)" } else { "NO (Mutating operations allowed)" });
-    println!("Terminal Exec    : {}", if settings.terminal.enabled { "ENABLED (Arbitrary command execution allowed)" } else { "DISABLED (Safe)" });
-    println!("Tool Call Logging: {}", if settings.server.log_tools { "ENABLED ([OK]/[WARN] per tool execution)" } else { "DISABLED (Quiet mode)" });
-    println!("OAuth Enabled    : {}", if settings.oauth.enabled { "YES" } else { "NO" });
-    println!("OAuth Require Auth: {}", if settings.oauth.require_auth { "YES (Bearer token required)" } else { "NO" });
+    println!(
+        "Server Address   : http://{}:{}",
+        settings.server.host, settings.server.port
+    );
+    println!(
+        "Read-Only Mode   : {}",
+        if settings.filesystem.read_only {
+            "YES (Safe)"
+        } else {
+            "NO (Mutating operations allowed)"
+        }
+    );
+    println!(
+        "Terminal Exec    : {}",
+        if settings.terminal.enabled {
+            "ENABLED (Arbitrary command execution allowed)"
+        } else {
+            "DISABLED (Safe)"
+        }
+    );
+    println!(
+        "Tool Call Logging: {}",
+        if settings.server.log_tools {
+            "ENABLED ([OK]/[WARN] per tool execution)"
+        } else {
+            "DISABLED (Quiet mode)"
+        }
+    );
+    println!(
+        "OAuth Enabled    : {}",
+        if settings.oauth.enabled { "YES" } else { "NO" }
+    );
+    println!(
+        "OAuth Require Auth: {}",
+        if settings.oauth.require_auth {
+            "YES (Bearer token required)"
+        } else {
+            "NO"
+        }
+    );
 
     println!("\nAllowed Filesystem Roots:");
     for (idx, root) in settings.filesystem.roots.iter().enumerate() {
@@ -103,11 +153,26 @@ pub fn print_config_summary(settings: &Settings, config_path: &Path) {
     }
 
     println!("\nResource Limits:");
-    println!("  • Server Max Concurrency: {}", settings.server.max_concurrency);
-    println!("  • Max Read Bytes        : {} MB", settings.filesystem.max_read_bytes / (1024 * 1024));
-    println!("  • Max Write Bytes       : {} MB", settings.filesystem.max_write_bytes / (1024 * 1024));
-    println!("  • Search Worker Threads : {}", settings.search.worker_threads);
-    println!("  • Search Max Results    : {}", settings.search.max_results);
+    println!(
+        "  • Server Max Concurrency: {}",
+        settings.server.max_concurrency
+    );
+    println!(
+        "  • Max Read Bytes        : {} MB",
+        settings.filesystem.max_read_bytes / (1024 * 1024)
+    );
+    println!(
+        "  • Max Write Bytes       : {} MB",
+        settings.filesystem.max_write_bytes / (1024 * 1024)
+    );
+    println!(
+        "  • Search Worker Threads : {}",
+        settings.search.worker_threads
+    );
+    println!(
+        "  • Search Max Results    : {}",
+        settings.search.max_results
+    );
     println!("--------------------------------------------------------------------------------\n");
 }
 

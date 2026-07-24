@@ -1,8 +1,8 @@
 use crate::oauth::OAuthStore;
 use anyhow::Result;
 use fs_mcp_rs::{
-    filesystem::Filesystem, search::Searcher, security::Policy,
-    settings::Settings, terminal::Terminal, tree::TreeLister,
+    filesystem::Filesystem, search::Searcher, security::Policy, settings::Settings,
+    terminal::Terminal, tree::TreeLister,
 };
 use std::sync::Arc;
 use tokio::sync::Semaphore;

@@ -92,12 +92,7 @@ pub fn resolve_config_path(explicit: Option<&Path>) -> Option<PathBuf> {
         PathBuf::from("configs/default.toml"),
         PathBuf::from("configs/example.toml"),
     ];
-    for candidate in candidates {
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-    }
-    None
+    candidates.into_iter().find(|candidate| candidate.is_file())
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -370,13 +365,16 @@ max_output_bytes = 1024
     #[test]
     fn resolves_explicit_and_default_config_path() {
         let explicit = Path::new("custom.toml");
-        assert_eq!(resolve_config_path(Some(explicit)), Some(PathBuf::from("custom.toml")));
+        assert_eq!(
+            resolve_config_path(Some(explicit)),
+            Some(PathBuf::from("custom.toml"))
+        );
 
-        let parsed = Cli::try_parse_from(["fs-mcp-rs", "init", "--output", "my_config.toml"]).unwrap();
+        let parsed =
+            Cli::try_parse_from(["fs-mcp-rs", "init", "--output", "my_config.toml"]).unwrap();
         match parsed.command {
             Some(Commands::Init { output }) => assert_eq!(output, PathBuf::from("my_config.toml")),
             _ => panic!("Expected Init subcommand"),
         }
     }
 }
-

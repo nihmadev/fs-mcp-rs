@@ -80,10 +80,17 @@ require_auth = {require_auth}
     panic!("server did not start");
 }
 
-fn http_request(port: u16, method: &str, path: &str, headers: &[(&str, &str)], body: Option<&str>) -> (u16, Value) {
+fn http_request(
+    port: u16,
+    method: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: Option<&str>,
+) -> (u16, Value) {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
     let body_bytes = body.unwrap_or("").as_bytes();
-    let mut req = format!("{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n");
+    let mut req =
+        format!("{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n");
     if body.is_some() {
         req.push_str(&format!("Content-Length: {}\r\n", body_bytes.len()));
     }
@@ -119,23 +126,50 @@ fn test_oauth_discovery_endpoints() {
     let (_server, port, _root) = start_server(false);
 
     // 1. /.well-known/oauth-authorization-server
-    let (code, json) = http_request(port, "GET", "/.well-known/oauth-authorization-server", &[], None);
+    let (code, json) = http_request(
+        port,
+        "GET",
+        "/.well-known/oauth-authorization-server",
+        &[],
+        None,
+    );
     assert_eq!(code, 200);
-    assert_eq!(json["authorization_endpoint"], format!("http://127.0.0.1:{port}/authorize"));
-    assert_eq!(json["token_endpoint"], format!("http://127.0.0.1:{port}/token"));
+    assert_eq!(
+        json["authorization_endpoint"],
+        format!("http://127.0.0.1:{port}/authorize")
+    );
+    assert_eq!(
+        json["token_endpoint"],
+        format!("http://127.0.0.1:{port}/token")
+    );
 
     // 2. /.well-known/openid-configuration
     let (code, json) = http_request(port, "GET", "/.well-known/openid-configuration", &[], None);
     assert_eq!(code, 200);
-    assert_eq!(json["userinfo_endpoint"], format!("http://127.0.0.1:{port}/userinfo"));
+    assert_eq!(
+        json["userinfo_endpoint"],
+        format!("http://127.0.0.1:{port}/userinfo")
+    );
 
     // 3. /.well-known/oauth-protected-resource
-    let (code, json) = http_request(port, "GET", "/.well-known/oauth-protected-resource", &[], None);
+    let (code, json) = http_request(
+        port,
+        "GET",
+        "/.well-known/oauth-protected-resource",
+        &[],
+        None,
+    );
     assert_eq!(code, 200);
     assert_eq!(json["resource"], format!("http://127.0.0.1:{port}/mcp"));
 
     // 4. /.well-known/oauth-protected-resource/mcp
-    let (code, json) = http_request(port, "GET", "/.well-known/oauth-protected-resource/mcp", &[], None);
+    let (code, json) = http_request(
+        port,
+        "GET",
+        "/.well-known/oauth-protected-resource/mcp",
+        &[],
+        None,
+    );
     assert_eq!(code, 200);
     assert_eq!(json["resource"], format!("http://127.0.0.1:{port}/mcp"));
 }

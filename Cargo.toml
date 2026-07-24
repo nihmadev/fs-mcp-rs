@@ -1,14 +1,17 @@
 [package]
 name = "fs-mcp-rs"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "A fast, configurable filesystem MCP server with explicit root isolation and bounded I/O"
 license = "GPL-3.0-or-later"
+repository = "https://github.com/nihmadev/fs-mcp-rs"
+homepage = "https://github.com/nihmadev/fs-mcp-rs"
+documentation = "https://docs.rs/fs-mcp-rs"
 readme = "README.md"
 keywords = ["mcp", "filesystem", "json-rpc", "server", "ai"]
 categories = ["command-line-utilities", "filesystem", "web-programming::http-server"]
-include = ["/src/**", "/tests/**", "/configs/example.toml", "/README.md", "/README_RU.md", "/LICENSE"]
+include = ["/src/**", "/tests/**", "/configs/**", "/README.md", "/README_RU.md", "/LICENSE"]
 
 [[bin]]
 name = "fs-mcp-rs"
@@ -19,9 +22,11 @@ members = ["crates/benchmarks"]
 resolver = "2"
 
 [workspace.package]
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
+repository = "https://github.com/nihmadev/fs-mcp-rs"
+homepage = "https://github.com/nihmadev/fs-mcp-rs"
 rust-version = "1.85"
 
 [dependencies]
@@ -88,7 +93,6 @@ inherits = "release"
 opt-level = 3
 lto = "fat"
 codegen-units = 1
-panic = "abort"
 debug = false
 overflow-checks = false
 

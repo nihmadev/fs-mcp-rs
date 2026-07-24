@@ -75,7 +75,10 @@ async fn cors_middleware(req: Request, next: Next) -> HttpResponse {
             "access-control-allow-methods",
             HeaderValue::from_static("GET, POST, OPTIONS, PUT, DELETE"),
         );
-        headers.insert("access-control-allow-headers", HeaderValue::from_static("*"));
+        headers.insert(
+            "access-control-allow-headers",
+            HeaderValue::from_static("*"),
+        );
         headers.insert("access-control-max-age", HeaderValue::from_static("86400"));
         return res;
     }
@@ -87,7 +90,10 @@ async fn cors_middleware(req: Request, next: Next) -> HttpResponse {
         "access-control-allow-methods",
         HeaderValue::from_static("GET, POST, OPTIONS, PUT, DELETE"),
     );
-    headers.insert("access-control-allow-headers", HeaderValue::from_static("*"));
+    headers.insert(
+        "access-control-allow-headers",
+        HeaderValue::from_static("*"),
+    );
     res
 }
 
