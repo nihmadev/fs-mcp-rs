@@ -51,31 +51,97 @@ fn error_code(message: &str) -> &'static str {
 /// Applies per-class concurrency limits and executes blocking tools off-runtime.
 pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String> {
     let total_started = Instant::now();
-    let call: ToolCall = serde_json::from_value(params).map_err(|e| e.to_string())?;
-    let permits = if call.name.starts_with("search_") {
+    let call: ToolCall = match serde_json::from_value(params) {
+        Ok(c) => c,
+        Err(e) => {
+            let err_msg = e.to_string();
+            if app.settings.server.log_tools {
+                println!("[WARN] unknown_tool - INVALID_PARAMS: {} (0 ms)", err_msg);
+            }
+            return Err(err_msg);
+        }
+    };
+
+    let tool_name = call.name.clone();
+    let arg_summary = summarize_arguments(&call.arguments);
+
+    let permits = if tool_name.starts_with("search_") {
         app.search_permits.clone()
     } else {
         app.io_permits.clone()
     };
     let queue_started = Instant::now();
-    let _permit = permits
-        .acquire_owned()
-        .await
-        .map_err(|_| "server is shutting down".to_owned())?;
+    let _permit = match permits.acquire_owned().await {
+        Ok(p) => p,
+        Err(_) => {
+            let err_msg = "server is shutting down".to_string();
+            if app.settings.server.log_tools {
+                let ms = total_started.elapsed().as_millis();
+                println!("[WARN] {} {} - SERVER_SHUTDOWN: {} ({} ms)", tool_name, arg_summary, err_msg, ms);
+            }
+            return Err(err_msg);
+        }
+    };
     let queue_us = queue_started.elapsed().as_micros() as u64;
     let execution_started = Instant::now();
-    let app = app.clone();
-    let mut result = tokio::task::spawn_blocking(move || call_tool_blocking(&app, call))
-        .await
-        .map_err(|e| format!("blocking task failed: {e}"))??;
+    let app_clone = app.clone();
+    let res = tokio::task::spawn_blocking(move || call_tool_blocking(&app_clone, call)).await;
+
     let execution_us = execution_started.elapsed().as_micros() as u64;
     let total_us = total_started.elapsed().as_micros() as u64;
-    result["_meta"] = json!({
-        "totalDurationUs": total_us,
-        "queueDurationUs": queue_us,
-        "executionDurationUs": execution_us
-    });
-    Ok(result)
+    let total_ms = total_started.elapsed().as_millis();
+
+    match res {
+        Ok(Ok(mut result)) => {
+            result["_meta"] = json!({
+                "totalDurationUs": total_us,
+                "queueDurationUs": queue_us,
+                "executionDurationUs": execution_us
+            });
+            if app.settings.server.log_tools {
+                if arg_summary.is_empty() {
+                    println!("[OK] {} ({} ms)", tool_name, total_ms);
+                } else {
+                    println!("[OK] {} {} ({} ms)", tool_name, arg_summary, total_ms);
+                }
+            }
+            Ok(result)
+        }
+        Ok(Err(err_msg)) => {
+            if app.settings.server.log_tools {
+                let code = error_code(&err_msg);
+                if arg_summary.is_empty() {
+                    println!("[WARN] {} - {}: {} ({} ms)", tool_name, code, err_msg, total_ms);
+                } else {
+                    println!("[WARN] {} {} - {}: {} ({} ms)", tool_name, arg_summary, code, err_msg, total_ms);
+                }
+            }
+            Err(err_msg)
+        }
+        Err(join_err) => {
+            let err_msg = format!("blocking task failed: {join_err}");
+            if app.settings.server.log_tools {
+                println!("[WARN] {} {} - INTERNAL_ERROR: {} ({} ms)", tool_name, arg_summary, err_msg, total_ms);
+            }
+            Err(err_msg)
+        }
+    }
+}
+
+fn summarize_arguments(args: &Value) -> String {
+    if let Some(obj) = args.as_object() {
+        for key in &["path", "command", "pattern", "source"] {
+            if let Some(val) = obj.get(*key).and_then(Value::as_str) {
+                let truncated = if val.len() > 40 {
+                    format!("{}...", &val[..37])
+                } else {
+                    val.to_string()
+                };
+                return format!("{}={:?}", key, truncated);
+            }
+        }
+    }
+    String::new()
 }
 
 /// Dispatches one validated tool call on a blocking worker thread.

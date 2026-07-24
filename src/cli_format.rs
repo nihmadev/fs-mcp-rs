@@ -93,6 +93,7 @@ pub fn print_config_summary(settings: &Settings, config_path: &Path) {
     println!("Server Address   : http://{}:{}", settings.server.host, settings.server.port);
     println!("Read-Only Mode   : {}", if settings.filesystem.read_only { "YES (Safe)" } else { "NO (Mutating operations allowed)" });
     println!("Terminal Exec    : {}", if settings.terminal.enabled { "ENABLED (Arbitrary command execution allowed)" } else { "DISABLED (Safe)" });
+    println!("Tool Call Logging: {}", if settings.server.log_tools { "ENABLED ([OK]/[WARN] per tool execution)" } else { "DISABLED (Quiet mode)" });
     println!("OAuth Enabled    : {}", if settings.oauth.enabled { "YES" } else { "NO" });
     println!("OAuth Require Auth: {}", if settings.oauth.require_auth { "YES (Bearer token required)" } else { "NO" });
 

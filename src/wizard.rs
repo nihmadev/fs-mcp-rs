@@ -56,7 +56,22 @@ pub fn run_wizard(output_path: &Path) -> Result<PathBuf> {
 
     let terminal_enabled = selected_terminal.starts_with("Enabled");
 
-    // 4. Server Listener Host and Port
+    // 4. Tool Call Logging Mode
+    let log_options = vec![
+        "Enabled (Concise [OK]/[WARN] log lines for every tool call)",
+        "Disabled (Quiet mode - no tool call logs)",
+    ];
+
+    let selected_log = Select::new(
+        "Select Tool Call Logging Mode:",
+        log_options,
+    )
+    .prompt()
+    .context("Wizard cancelled")?;
+
+    let log_tools = selected_log.starts_with("Enabled");
+
+    // 5. Server Listener Host and Port
     let host_str = Text::new("Server Host IP:")
         .with_default("127.0.0.1")
         .prompt()
@@ -69,7 +84,7 @@ pub fn run_wizard(output_path: &Path) -> Result<PathBuf> {
 
     let port: u16 = port_str.trim().parse().unwrap_or(8000);
 
-    // 5. Config file destination
+    // 6. Config file destination
     let output_str = Text::new("Save Configuration File to:")
         .with_default(&output_path.to_string_lossy())
         .prompt()
@@ -88,6 +103,7 @@ host = "{host}"
 port = {port}
 max_concurrency = 32
 max_io_concurrency = 16
+log_tools = {log_tools}
 
 [filesystem]
 roots = ["{root}"]
@@ -125,6 +141,7 @@ require_auth = false
 "#,
         host = host_str.trim(),
         port = port,
+        log_tools = log_tools,
         root = root_formatted,
         read_only = read_only,
         terminal_enabled = terminal_enabled
