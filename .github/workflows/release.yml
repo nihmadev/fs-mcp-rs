@@ -129,9 +129,7 @@ jobs:
           mkdir -p dist
 
           if [ "${{ matrix.archive_format }}" = "zip" ]; then
-            cd dist_staging
-            7z a "../../dist/${ARCHIVE_NAME}.zip" "${ARCHIVE_NAME}"
-            cd ..
+            powershell -Command "Compress-Archive -Path 'dist_staging/${ARCHIVE_NAME}' -DestinationPath 'dist/${ARCHIVE_NAME}.zip'"
           else
             tar -czf "dist/${ARCHIVE_NAME}.tar.gz" -C dist_staging "${ARCHIVE_NAME}"
           fi

@@ -28,16 +28,27 @@ pub struct Cli {
     /// TOML configuration file. May also be set with FS_MCP_CONFIG.
     #[arg(long, short, env = "FS_MCP_CONFIG", value_name = "FILE", global = true)]
     pub config: Option<PathBuf>,
+
+    /// Force STDIO transport mode (stdin/stdout JSON-RPC).
+    #[arg(long, global = true)]
+    pub stdio: bool,
+
+    /// Allowed filesystem root directory paths.
+    #[arg(value_name = "PATHS")]
+    pub root_paths: Vec<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
 /// Available CLI subcommands.
 pub enum Commands {
-    /// Start the filesystem MCP HTTP server
+    /// Start the filesystem MCP server
     Serve {
         /// Path to TOML configuration file
         #[arg(long, short, value_name = "FILE")]
         config: Option<PathBuf>,
+        /// Force STDIO transport mode instead of HTTP
+        #[arg(long)]
+        stdio: bool,
     },
     /// Run interactive terminal setup wizard (with arrow key selection)
     Init {
@@ -251,6 +262,24 @@ fn default_terminal_session_retention_ms() -> u64 {
 }
 
 impl Settings {
+    /// Loads default configuration template and applies the specified `roots`.
+    pub fn default_with_roots(roots: Vec<PathBuf>) -> Result<Self> {
+        let text = include_str!("../configs/default.toml");
+        let mut settings: Self = toml::from_str(text).context("invalid default configuration template")?;
+        if !roots.is_empty() {
+            settings.filesystem.roots = roots;
+        }
+        for root in &mut settings.filesystem.roots {
+            if root.is_relative() {
+                if let Ok(cwd) = std::env::current_dir() {
+                    *root = cwd.join(&*root);
+                }
+            }
+        }
+        settings.validate()?;
+        Ok(settings)
+    }
+
     /// Loads, resolves, and validates a TOML configuration file.
     ///
     /// Relative filesystem roots are interpreted relative to the configuration

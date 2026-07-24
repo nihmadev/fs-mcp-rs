@@ -1,0 +1,31 @@
+{
+  "name": "fs-mcp-rs",
+  "version": "1.2.0",
+  "description": "A fast, configurable filesystem MCP server written in Rust",
+  "main": "bin/index.js",
+  "bin": {
+    "fs-mcp-rs": "bin/index.js"
+  },
+  "scripts": {
+    "postinstall": "node bin/index.js --download-only"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nihmadev/fs-mcp-rs.git"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "filesystem",
+    "claude",
+    "cursor",
+    "ai",
+    "rust"
+  ],
+  "author": "nihmadev",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/nihmadev/fs-mcp-rs/issues"
+  },
+  "homepage": "https://github.com/nihmadev/fs-mcp-rs#readme"
+}

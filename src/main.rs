@@ -1,8 +1,7 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use clap::Parser;
 use fs_mcp_rs::cli_format::{
-    default_config_toml, print_client_snippets, print_config_summary, print_no_config_banner,
-    print_tools_catalog,
+    default_config_toml, print_client_snippets, print_config_summary, print_tools_catalog,
 };
 use fs_mcp_rs::protocol::Tool;
 use fs_mcp_rs::settings::{Cli, Commands, ConfigCommands, Settings, resolve_config_path};
@@ -11,13 +10,19 @@ use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 mod app;
+mod handler;
 mod oauth;
 mod server;
+mod stdio;
 mod tools;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().with_env_filter("info").init();
+    // Direct all tracing logs to stderr so stdout remains clean for JSON-RPC in STDIO mode
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_env_filter("info")
+        .init();
 
     let cli = Cli::parse();
 
@@ -52,43 +57,39 @@ async fn main() -> Result<()> {
                 Ok(())
             }
         },
-        Some(Commands::Serve { config }) => {
-            let config_path = get_or_prompt_config(config.as_deref())?;
-            run_server(config_path).await
+        Some(Commands::Serve { config, stdio }) => {
+            let (settings, config_path) = load_settings(config.as_deref().or(cli.config.as_deref()), cli.root_paths)?;
+            let app = app::App::new(settings)?;
+            if stdio || cli.stdio {
+                stdio::serve(app).await
+            } else {
+                let path_display = config_path.unwrap_or_else(|| PathBuf::from("default"));
+                server::serve(app, &path_display).await
+            }
         }
         None => {
-            let config_path = get_or_prompt_config(cli.config.as_deref())?;
-            run_server(config_path).await
+            let is_interactive = std::io::stdout().is_terminal() && std::io::stdin().is_terminal();
+            let force_stdio = cli.stdio || !is_interactive;
+
+            let (settings, config_path) = load_settings(cli.config.as_deref(), cli.root_paths)?;
+            let app = app::App::new(settings)?;
+
+            if force_stdio {
+                stdio::serve(app).await
+            } else {
+                let path_display = config_path.unwrap_or_else(|| PathBuf::from("default"));
+                server::serve(app, &path_display).await
+            }
         }
     }
 }
 
-fn get_or_prompt_config(explicit: Option<&Path>) -> Result<PathBuf> {
+fn load_settings(explicit: Option<&Path>, root_paths: Vec<PathBuf>) -> Result<(Settings, Option<PathBuf>)> {
     if let Some(resolved) = resolve_config_path(explicit) {
-        println!("[INFO] Using configuration: {}", resolved.display());
-        return Ok(resolved);
+        let settings = Settings::load(&resolved)?;
+        return Ok((settings, Some(resolved)));
     }
 
-    if std::io::stdout().is_terminal() && std::io::stdin().is_terminal() {
-        print_no_config_banner();
-        let prompt_wizard =
-            inquire::Confirm::new("Would you like to run the interactive setup wizard now?")
-                .with_default(true)
-                .prompt()
-                .unwrap_or(false);
-
-        if prompt_wizard {
-            return run_wizard(Path::new("config.toml"));
-        }
-    } else {
-        print_no_config_banner();
-    }
-
-    bail!("No configuration file specified or found.")
-}
-
-async fn run_server(config_path: PathBuf) -> Result<()> {
-    let settings = Settings::load(&config_path)?;
-    let app = app::App::new(settings)?;
-    server::serve(app, &config_path).await
+    let settings = Settings::default_with_roots(root_paths)?;
+    Ok((settings, None))
 }
