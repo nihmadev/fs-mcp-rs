@@ -56,12 +56,12 @@ fn error_code(message: &str) -> &'static str {
 /// Applies per-class concurrency limits and executes blocking tools off-runtime.
 pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String> {
     let total_started = Instant::now();
-    let call: ToolCall = match serde_json::from_value(params) {
+    let call: ToolCall =    match serde_json::from_value(params) {
         Ok(c) => c,
         Err(e) => {
             let err_msg = e.to_string();
             if app.settings.server.log_tools {
-                println!("[WARN] unknown_tool - INVALID_PARAMS: {} (0 ms)", err_msg);
+                eprintln!("[WARN] unknown_tool - INVALID_PARAMS: {} (0 ms)", err_msg);
             }
             return Err(err_msg);
         }
@@ -82,7 +82,7 @@ pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String>
             let err_msg = "server is shutting down".to_string();
             if app.settings.server.log_tools {
                 let ms = total_started.elapsed().as_millis();
-                println!(
+                eprintln!(
                     "[WARN] {} {} - SERVER_SHUTDOWN: {} ({} ms)",
                     tool_name, arg_summary, err_msg, ms
                 );
@@ -108,9 +108,9 @@ pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String>
             });
             if app.settings.server.log_tools {
                 if arg_summary.is_empty() {
-                    println!("[OK] {} ({} ms)", tool_name, total_ms);
+                    eprintln!("[OK] {} ({} ms)", tool_name, total_ms);
                 } else {
-                    println!("[OK] {} {} ({} ms)", tool_name, arg_summary, total_ms);
+                    eprintln!("[OK] {} {} ({} ms)", tool_name, arg_summary, total_ms);
                 }
             }
             Ok(result)
@@ -119,12 +119,12 @@ pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String>
             if app.settings.server.log_tools {
                 let code = error_code(&err_msg);
                 if arg_summary.is_empty() {
-                    println!(
+                    eprintln!(
                         "[WARN] {} - {}: {} ({} ms)",
                         tool_name, code, err_msg, total_ms
                     );
                 } else {
-                    println!(
+                    eprintln!(
                         "[WARN] {} {} - {}: {} ({} ms)",
                         tool_name, arg_summary, code, err_msg, total_ms
                     );
@@ -135,7 +135,7 @@ pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String>
         Err(join_err) => {
             let err_msg = format!("blocking task failed: {join_err}");
             if app.settings.server.log_tools {
-                println!(
+                eprintln!(
                     "[WARN] {} {} - INTERNAL_ERROR: {} ({} ms)",
                     tool_name, arg_summary, err_msg, total_ms
                 );
