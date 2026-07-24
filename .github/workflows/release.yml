@@ -1,0 +1,167 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    name: Check Version & Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      should_release: ${{ steps.version.outputs.should_release }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Extract Cargo Version & Check Tag
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          TAG="v$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Workflow manually dispatched. Proceeding with release for $TAG."
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          elif git rev-parse "$TAG" >/dev/null 2>&1 || git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+            echo "Tag $TAG already exists on remote. Skipping release build."
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version detected: $TAG. Proceeding with release."
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push git tag
+        if: steps.version.outputs.should_release == 'true' && github.event_name != 'workflow_dispatch'
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+  build-binaries:
+    name: Build (${{ matrix.target }})
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact_name: fs-mcp-rs-windows-x64
+            binary_name: fs-mcp-rs.exe
+            archive_format: zip
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: fs-mcp-rs-linux-x64
+            binary_name: fs-mcp-rs
+            archive_format: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: fs-mcp-rs-macos-arm64
+            binary_name: fs-mcp-rs
+            archive_format: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact_name: fs-mcp-rs-macos-x64
+            binary_name: fs-mcp-rs
+            archive_format: tar.gz
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Configure sccache
+        uses: mozilla-actions/sccache-action@v0.0.8
+
+      - name: Set sccache environment
+        shell: bash
+        run: |
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+
+      - name: Build Release Binary
+        shell: bash
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package Assets
+        shell: bash
+        run: |
+          TAG="${{ needs.check-version.outputs.tag }}"
+          ARCHIVE_NAME="${{ matrix.artifact_name }}-${TAG}"
+          STAGING="dist_staging/${ARCHIVE_NAME}"
+          mkdir -p "${STAGING}"
+
+          # Copy binary
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary_name }}" "${STAGING}/"
+
+          # Copy documentation and configs
+          cp README.md "${STAGING}/"
+          [ -f README_RU.md ] && cp README_RU.md "${STAGING}/"
+          [ -f LICENSE ] && cp LICENSE "${STAGING}/"
+          [ -d configs ] && cp -r configs "${STAGING}/"
+
+          mkdir -p dist
+
+          if [ "${{ matrix.archive_format }}" = "zip" ]; then
+            cd dist_staging
+            7z a "../../dist/${ARCHIVE_NAME}.zip" "${ARCHIVE_NAME}"
+            cd ..
+          else
+            tar -czf "dist/${ARCHIVE_NAME}.tar.gz" -C dist_staging "${ARCHIVE_NAME}"
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/*
+          retention-days: 1
+
+  create-release:
+    name: Create GitHub Release
+    needs: [check-version, build-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.check-version.outputs.tag }}
+          name: Release ${{ needs.check-version.outputs.tag }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: release_assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
