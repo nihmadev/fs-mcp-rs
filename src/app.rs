@@ -1,7 +1,8 @@
+use crate::oauth::OAuthStore;
 use anyhow::Result;
 use fs_mcp_rs::{
-    filesystem::Filesystem, search::Searcher, security::Policy, settings::Settings,
-    terminal::Terminal, tree::TreeLister,
+    filesystem::Filesystem, search::Searcher, security::Policy,
+    settings::Settings, terminal::Terminal, tree::TreeLister,
 };
 use std::sync::Arc;
 use tokio::sync::Semaphore;
@@ -14,6 +15,7 @@ pub(crate) struct App {
     pub(crate) tree: TreeLister,
     pub(crate) settings: Arc<Settings>,
     pub(crate) terminal: Terminal,
+    pub(crate) oauth: OAuthStore,
     pub(crate) permits: Arc<Semaphore>,
     pub(crate) io_permits: Arc<Semaphore>,
     pub(crate) search_permits: Arc<Semaphore>,
@@ -59,6 +61,7 @@ impl App {
                 settings.terminal.max_wait_ms,
                 settings.terminal.session_retention_ms,
             ),
+            oauth: OAuthStore::new(),
             permits: Arc::new(Semaphore::new(settings.server.max_concurrency)),
             io_permits: Arc::new(Semaphore::new(settings.server.max_io_concurrency)),
             search_permits: Arc::new(Semaphore::new(settings.search.max_concurrency)),
