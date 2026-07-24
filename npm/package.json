@@ -1,6 +1,7 @@
 {
   "name": "fs-mcp-rs",
-  "version": "1.2.2",
+  "mcpName": "io.github.nihmadev/fs-mcp-rs",
+  "version": "1.2.4",
   "description": "A fast, configurable filesystem MCP server written in Rust",
   "main": "bin/index.js",
   "bin": {

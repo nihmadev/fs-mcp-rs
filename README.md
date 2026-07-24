@@ -1,3 +1,4 @@
+<!-- mcp-name: io.github.nihmadev/fs-mcp-rs -->
 # fs-mcp-rs
 
 [![Crates.io](https://img.shields.io/crates/v/fs-mcp-rs?logo=rust&label=crates.io)](https://crates.io/crates/fs-mcp-rs)
