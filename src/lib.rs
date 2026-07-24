@@ -36,3 +36,6 @@ pub mod terminal;
 
 pub mod patch;
 pub mod tree;
+
+pub mod cli_format;
+pub mod wizard;
