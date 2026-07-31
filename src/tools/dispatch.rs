@@ -14,6 +14,28 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{path::PathBuf, time::Instant};
 
+enum ToolOutput {
+    Text(String),
+    Structured(Value),
+}
+
+fn tool_result(output: ToolOutput) -> Result<Value, String> {
+    match output {
+        ToolOutput::Text(text) => Ok(json!({
+            "content": [{"type": "text", "text": text}],
+            "isError": false
+        })),
+        ToolOutput::Structured(value) => {
+            let text = serde_json::to_string(&value).map_err(|e| e.to_string())?;
+            Ok(json!({
+                "content": [{"type": "text", "text": text}],
+                "structuredContent": value,
+                "isError": false
+            }))
+        }
+    }
+}
+
 #[derive(Deserialize)]
 /// Decoded `tools/call` parameters.
 struct ToolCall {
@@ -149,8 +171,8 @@ fn summarize_arguments(args: &Value) -> String {
     if let Some(obj) = args.as_object() {
         for key in &["path", "command", "pattern", "source"] {
             if let Some(val) = obj.get(*key).and_then(Value::as_str) {
-                let truncated = if val.len() > 40 {
-                    format!("{}...", &val[..37])
+                let truncated = if val.chars().count() > 40 {
+                    format!("{}...", val.chars().take(37).collect::<String>())
                 } else {
                     val.to_string()
                 };
@@ -178,13 +200,17 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
             struct Empty {}
             let _: Empty = serde_json::from_value(arguments.clone()).map_err(|e| e.to_string())?;
             let cfg = &app.settings;
-            serde_json::to_string(&json!({"server":{"name":"fs-mcp-rs","version":env!("CARGO_PKG_VERSION")},"protocolVersions":SUPPORTED_PROTOCOL_VERSIONS,"osFamily":std::env::consts::FAMILY,"roots":cfg.filesystem.roots.iter().map(|p| crate::security::display_path(p)).collect::<Vec<_>>(),"filesystem":{"readOnly":cfg.filesystem.read_only,"followLinks":cfg.filesystem.follow_links,"maxReadBytes":cfg.filesystem.max_read_bytes,"maxWriteBytes":cfg.filesystem.max_write_bytes},"search":{"maxResults":cfg.search.max_results,"maxConcurrency":cfg.search.max_concurrency},"tree":{"maxDepth":cfg.filesystem.tree_max_depth,"maxEntries":cfg.filesystem.tree_max_entries,"maxWarnings":cfg.filesystem.tree_max_warnings},"terminal":{"enabled":cfg.terminal.enabled,"defaultTimeoutMs":cfg.terminal.default_timeout_ms,"maxTimeoutMs":cfg.terminal.max_timeout_ms,"maxOutputBytes":cfg.terminal.max_output_bytes,"maxReadBytes":cfg.terminal.max_read_bytes,"maxWaitMs":cfg.terminal.max_wait_ms,"sessionRetentionMs":cfg.terminal.session_retention_ms,"maxConcurrency":cfg.terminal.max_concurrency},"tools":tools().iter().map(|t|t.name).collect::<Vec<_>>() })).map_err(|e| e.to_string())?
+            ToolOutput::Structured(
+                json!({"server":{"name":"fs-mcp-rs","version":env!("CARGO_PKG_VERSION")},"protocolVersions":SUPPORTED_PROTOCOL_VERSIONS,"osFamily":std::env::consts::FAMILY,"roots":cfg.filesystem.roots.iter().map(|p| crate::security::display_path(p)).collect::<Vec<_>>(),"filesystem":{"readOnly":cfg.filesystem.read_only,"followLinks":cfg.filesystem.follow_links,"maxReadBytes":cfg.filesystem.max_read_bytes,"maxWriteBytes":cfg.filesystem.max_write_bytes},"search":{"maxResults":cfg.search.max_results,"maxConcurrency":cfg.search.max_concurrency},"tree":{"maxDepth":cfg.filesystem.tree_max_depth,"maxEntries":cfg.filesystem.tree_max_entries,"maxWarnings":cfg.filesystem.tree_max_warnings},"terminal":{"enabled":cfg.terminal.enabled,"defaultTimeoutMs":cfg.terminal.default_timeout_ms,"maxTimeoutMs":cfg.terminal.max_timeout_ms,"maxOutputBytes":cfg.terminal.max_output_bytes,"maxReadBytes":cfg.terminal.max_read_bytes,"maxWaitMs":cfg.terminal.max_wait_ms,"sessionRetentionMs":cfg.terminal.session_retention_ms,"maxConcurrency":cfg.terminal.max_concurrency},"tools":tools().iter().map(|t|t.name).collect::<Vec<_>>() }),
+            )
         }
         "list_tree" => {
             let req: ListTreeRequest =
                 serde_json::from_value(arguments.clone()).map_err(|e| e.to_string())?;
-            serde_json::to_string(&app.tree.list(&req).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?
+            ToolOutput::Structured(
+                serde_json::to_value(app.tree.list(&req).map_err(|e| e.to_string())?)
+                    .map_err(|e| e.to_string())?,
+            )
         }
         "file_info" => {
             #[derive(Deserialize)]
@@ -195,33 +221,36 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
                 include_hash: bool,
             }
             let req: A = serde_json::from_value(arguments.clone()).map_err(|e| e.to_string())?;
-            serde_json::to_string(
-                &app.fs
-                    .file_info(&req.path, req.include_hash)
-                    .map_err(|e| e.to_string())?,
+            ToolOutput::Structured(
+                serde_json::to_value(
+                    app.fs
+                        .file_info(&req.path, req.include_hash)
+                        .map_err(|e| e.to_string())?,
+                )
+                .map_err(|e| e.to_string())?,
             )
-            .map_err(|e| e.to_string())?
         }
         "apply_patch" => {
             let req: ApplyPatchRequest =
                 serde_json::from_value(arguments.clone()).map_err(|e| e.to_string())?;
-            serde_json::to_string(
-                &apply_patch(
-                    &app.fs,
-                    &req,
-                    app.settings.filesystem.patch_max_bytes,
-                    app.settings.filesystem.patch_preview_bytes,
+            ToolOutput::Structured(
+                serde_json::to_value(
+                    apply_patch(
+                        &app.fs,
+                        &req,
+                        app.settings.filesystem.patch_max_bytes,
+                        app.settings.filesystem.patch_preview_bytes,
+                    )
+                    .map_err(|e| e.to_string())?,
                 )
                 .map_err(|e| e.to_string())?,
             )
-            .map_err(|e| e.to_string())?
         }
-        "list_directory" => serde_json::to_string(&json!({
+        "list_directory" => ToolOutput::Structured(json!({
             "entries": app.fs
                 .list(&PathBuf::from(text("path")?))
                 .map_err(|e| e.to_string())?
-        }))
-        .map_err(|e| e.to_string())?,
+        })),
         "read_file" => {
             let length = arguments
                 .get("length")
@@ -236,10 +265,10 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
                     length,
                 )
                 .map_err(|e| e.to_string())?;
-            match String::from_utf8(bytes) {
+            ToolOutput::Text(match String::from_utf8(bytes) {
                 Ok(text) => text,
                 Err(error) => String::from_utf8_lossy(error.as_bytes()).into_owned(),
-            }
+            })
         }
         "write_file" => {
             let content = text("content")?;
@@ -255,20 +284,18 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
                     create_parents,
                 )
                 .map_err(|e| e.to_string())?;
-            serde_json::to_string(&json!({
+            ToolOutput::Structured(json!({
                 "written": content.len(),
                 "blake3": hash,
                 "createdDirectories": created_directories
             }))
-            .map_err(|e| e.to_string())?
         }
-        "search_files" => serde_json::to_string(&json!({
+        "search_files" => ToolOutput::Structured(json!({
             "paths": app.search
                 .files(&PathBuf::from(text("path")?), &text("pattern")?)
                 .map_err(|e| e.to_string())?
-        }))
-        .map_err(|e| e.to_string())?,
-        "search_content" => serde_json::to_string(&json!({
+        })),
+        "search_content" => ToolOutput::Structured(json!({
             "matches": app.search
                 .content(
                     &PathBuf::from(text("path")?),
@@ -279,25 +306,25 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
                         .unwrap_or(true),
                 )
                 .map_err(|e| e.to_string())?
-        }))
-        .map_err(|e| e.to_string())?,
+        })),
 
         "create_directory" => {
             app.fs
                 .create_directory(&PathBuf::from(text("path")?))
                 .map_err(|e| e.to_string())?;
-            "{\"created\":true}".into()
+            ToolOutput::Structured(json!({"created": true}))
         }
         "remove" => {
             app.fs
                 .remove(&PathBuf::from(text("path")?))
                 .map_err(|e| e.to_string())?;
-            "{\"removed\":true}".into()
+            ToolOutput::Structured(json!({"removed": true}))
         }
-        "hash_file" => app
-            .fs
-            .hash(&PathBuf::from(text("path")?))
-            .map_err(|e| e.to_string())?,
+        "hash_file" => ToolOutput::Text(
+            app.fs
+                .hash(&PathBuf::from(text("path")?))
+                .map_err(|e| e.to_string())?,
+        ),
         "move" => {
             app.fs
                 .move_path(
@@ -305,21 +332,22 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
                     &PathBuf::from(text("destination")?),
                 )
                 .map_err(|e| e.to_string())?;
-            "{\"moved\":true}".into()
+            ToolOutput::Structured(json!({"moved": true}))
         }
-        "edit_text" => app
-            .fs
-            .edit(
-                &PathBuf::from(text("path")?),
-                &text("old")?,
-                &text("new")?,
-                arguments
-                    .get("expected")
-                    .and_then(Value::as_u64)
-                    .ok_or_else(|| "missing integer argument: expected".to_owned())?
-                    as usize,
-            )
-            .map_err(|e| e.to_string())?,
+        "edit_text" => ToolOutput::Text(
+            app.fs
+                .edit(
+                    &PathBuf::from(text("path")?),
+                    &text("old")?,
+                    &text("new")?,
+                    arguments
+                        .get("expected")
+                        .and_then(Value::as_u64)
+                        .ok_or_else(|| "missing integer argument: expected".to_owned())?
+                        as usize,
+                )
+                .map_err(|e| e.to_string())?,
+        ),
         "terminal_start" => {
             let command = text("command")?;
             let cwd = arguments
@@ -334,7 +362,7 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
                     arguments.get("timeoutMs").and_then(Value::as_u64),
                 )
                 .map_err(|e| e.to_string())?;
-            serde_json::to_string(&result).map_err(|e| e.to_string())?
+            ToolOutput::Structured(serde_json::to_value(result).map_err(|e| e.to_string())?)
         }
         "terminal_read" => {
             let result = app
@@ -349,33 +377,33 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
                         .map(|value| value as usize),
                 )
                 .map_err(|e| e.to_string())?;
-            serde_json::to_string(&result).map_err(|e| e.to_string())?
+            ToolOutput::Structured(serde_json::to_value(result).map_err(|e| e.to_string())?)
         }
         "terminal_write" => {
             let result = app
                 .terminal
                 .write(&text("sessionId")?, text("data")?.as_bytes())
                 .map_err(|e| e.to_string())?;
-            serde_json::to_string(&result).map_err(|e| e.to_string())?
+            ToolOutput::Structured(serde_json::to_value(result).map_err(|e| e.to_string())?)
         }
         "terminal_close_stdin" => {
             app.terminal
                 .close_stdin(&text("sessionId")?)
                 .map_err(|e| e.to_string())?;
-            "{\"closed\":true}".into()
+            ToolOutput::Structured(json!({"closed": true}))
         }
         "terminal_kill" => {
             let result = app
                 .terminal
                 .kill(&text("sessionId")?)
                 .map_err(|e| e.to_string())?;
-            serde_json::to_string(&result).map_err(|e| e.to_string())?
+            ToolOutput::Structured(serde_json::to_value(result).map_err(|e| e.to_string())?)
         }
         "terminal_close" => {
             app.terminal
                 .close(&text("sessionId")?)
                 .map_err(|e| e.to_string())?;
-            "{\"closed\":true}".into()
+            ToolOutput::Structured(json!({"closed": true}))
         }
         "run_command" => {
             let command = text("command")?;
@@ -391,16 +419,30 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
                     arguments.get("timeoutMs").and_then(Value::as_u64),
                 )
                 .map_err(|e| e.to_string())?;
-            serde_json::to_string(&result).map_err(|e| e.to_string())?
+            ToolOutput::Structured(serde_json::to_value(result).map_err(|e| e.to_string())?)
         }
         _ => return Err(format!("unknown tool: {}", call.name)),
     };
-    let mut result = json!({
-        "content": [{"type": "text", "text": output}],
-        "isError": false
-    });
-    if let Ok(Value::Object(object)) = serde_json::from_str::<Value>(&output) {
-        result["structuredContent"] = Value::Object(object);
+    tool_result(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ToolOutput, summarize_arguments, tool_result};
+    use serde_json::json;
+
+    #[test]
+    fn argument_summary_truncates_unicode_at_character_boundaries() {
+        let summary = summarize_arguments(&json!({"path": "файл".repeat(20)}));
+        assert!(summary.starts_with("path="));
+        assert!(summary.contains("..."));
     }
-    Ok(result)
+
+    #[test]
+    fn structured_result_keeps_text_and_object_representations() {
+        let value = json!({"entries": ["a", "b"]});
+        let result = tool_result(ToolOutput::Structured(value.clone())).unwrap();
+        assert_eq!(result["structuredContent"], value);
+        assert_eq!(result["content"][0]["text"], "{\"entries\":[\"a\",\"b\"]}");
+    }
 }
