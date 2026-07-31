@@ -24,16 +24,16 @@ jobs:
             os: windows-latest
             artifact: desktop-windows
             paths: |
-              apps/desktop/src-tauri/target/release/bundle/msi/*.msi
-              apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+              target/release/bundle/msi/*.msi
+              target/release/bundle/nsis/*.exe
           - name: Linux
             os: ubuntu-22.04
             artifact: desktop-linux
-            paths: apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            paths: target/release/bundle/appimage/*.AppImage
           - name: macOS
             os: macos-latest
             artifact: desktop-macos
-            paths: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            paths: target/release/bundle/dmg/*.dmg
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -58,6 +58,13 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Enable sccache
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       - name: Install frontend dependencies
         working-directory: apps/desktop
