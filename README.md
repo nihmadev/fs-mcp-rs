@@ -1,4 +1,5 @@
 <!-- mcp-name: io.github.nihmadev/fs-mcp-rs -->
+![fs-mcp-rs](assets/preview.png)
 # fs-mcp-rs
 
 [![Crates.io](https://img.shields.io/crates/v/fs-mcp-rs?logo=rust&label=crates.io)](https://crates.io/crates/fs-mcp-rs)
@@ -227,6 +228,28 @@ The MCP endpoint is:
 ```text
 http://127.0.0.1:8000/mcp
 ```
+
+### Start the server and a tunnel together
+
+The `run` subcommand always starts the MCP server in HTTP mode and can manage an ngrok, Cloudflare Quick Tunnel, or zrok public share in the same process lifecycle:
+
+```console
+fs-mcp-rs run --ngrok /path/to/allowed/directory
+fs-mcp-rs run --ngrok --config ./fs-mcp-rs.toml
+fs-mcp-rs run --cloudflared /path/to/allowed/directory
+fs-mcp-rs run --zrok /path/to/allowed/directory
+```
+
+The providers are mutually exclusive. On Windows, the tunnel opens in a new console by default. Use `--tunnel-window hidden` to avoid a separate visible console while keeping the generated URL in the current terminal, or `--tunnel-window inherit` to attach normally. On Linux and macOS, `new` inherits the current terminal because creating a terminal window is desktop-specific. Each provider accepts repeatable extra arguments and an explicit executable path:
+
+```console
+fs-mcp-rs run --ngrok --tunnel-window hidden --ngrok-arg=--region=eu
+fs-mcp-rs run --ngrok --ngrok-bin /opt/ngrok/ngrok
+fs-mcp-rs run --cloudflared --cloudflared-arg=--no-autoupdate
+fs-mcp-rs run --zrok --zrok-bin /opt/zrok/zrok
+```
+
+Stopping the MCP server also stops the tunnel process. Existing invocations such as `fs-mcp-rs [PATHS]`, `fs-mcp-rs --config FILE`, and `fs-mcp-rs serve` are unchanged. The earlier `--ngrok-window` spelling remains an alias for `--tunnel-window`.
 
 ## Expose the server through a secure tunnel
 

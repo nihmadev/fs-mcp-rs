@@ -1,3 +1,4 @@
+![fs-mcp-rs](assets/preview.png)
 # fs-mcp-rs
 
 [![Crates.io](https://img.shields.io/crates/v/fs-mcp-rs?logo=rust&label=crates.io)](https://crates.io/crates/fs-mcp-rs)
@@ -226,6 +227,28 @@ MCP endpoint:
 ```text
 http://127.0.0.1:8000/mcp
 ```
+
+### Одновременный запуск сервера и туннеля
+
+Подкоманда `run` всегда запускает MCP-сервер в HTTP-режиме и может управлять туннелем ngrok, Cloudflare Quick Tunnel или публичной публикацией zrok в рамках того же жизненного цикла:
+
+```console
+fs-mcp-rs run --ngrok /path/to/allowed/directory
+fs-mcp-rs run --ngrok --config ./fs-mcp-rs.toml
+fs-mcp-rs run --cloudflared /path/to/allowed/directory
+fs-mcp-rs run --zrok /path/to/allowed/directory
+```
+
+Провайдеры взаимоисключающие. В Windows туннель по умолчанию открывается в новой консоли. Используйте `--tunnel-window hidden`, чтобы не создавать отдельную видимую консоль и при этом увидеть сгенерированный URL в текущем терминале, или `--tunnel-window inherit` для обычного подключения к терминалу. В Linux и macOS режим `new` наследует текущий терминал, поскольку создание окна зависит от окружения рабочего стола. Каждый провайдер поддерживает повторяемые дополнительные аргументы и явный путь к программе:
+
+```console
+fs-mcp-rs run --ngrok --tunnel-window hidden --ngrok-arg=--region=eu
+fs-mcp-rs run --ngrok --ngrok-bin C:\tools\ngrok.exe
+fs-mcp-rs run --cloudflared --cloudflared-arg=--no-autoupdate
+fs-mcp-rs run --zrok --zrok-bin C:\tools\zrok.exe
+```
+
+При остановке MCP-сервера процесс туннеля также завершается. Существующие вызовы `fs-mcp-rs [PATHS]`, `fs-mcp-rs --config FILE` и `fs-mcp-rs serve` не изменены. Прежнее имя `--ngrok-window` сохранено как alias для `--tunnel-window`.
 
 ## Публикация сервера через безопасный туннель
 

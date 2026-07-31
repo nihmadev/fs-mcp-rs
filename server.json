@@ -16,14 +16,6 @@
       "transport": {
         "type": "stdio"
       }
-    },
-    {
-      "registryType": "cargo",
-      "identifier": "fs-mcp-rs",
-      "version": "1.2.4",
-      "transport": {
-        "type": "stdio"
-      }
     }
   ]
 }
