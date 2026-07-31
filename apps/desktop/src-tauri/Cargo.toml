@@ -1,0 +1,30 @@
+[package]
+name = "fs-mcp-rs-desktop"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-or-later"
+
+[build-dependencies]
+tauri-build = { version = "2", default-features = false, features = [] }
+
+[dependencies]
+tauri = { version = "2", default-features = false, features = ["tray-icon", "wry"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+axum = { version = "0.8", default-features = false, features = ["json", "tokio", "http1"] }
+tokio = { version = "1.0", default-features = false, features = ["rt-multi-thread", "macros", "net", "signal", "sync"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "ansi"] }
+fs-mcp-rs = { path = "../../.." }
+toml = { version = "0.9", default-features = false, features = ["display", "parse", "serde"] }
+
+[dev-dependencies]
+tempfile = { version = "3.20", default-features = false }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
