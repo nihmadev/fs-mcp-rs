@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -480,7 +480,8 @@ fn build_settings(config: &ServerConfig) -> Result<fs_mcp_rs::settings::Settings
     anyhow::ensure!(
         config.max_search_results > 0
             && config.search_max_concurrency > 0
-            && config.search_worker_threads > 0,
+            && config.search_worker_threads > 0
+            && config.regex_cache_capacity > 0,
         "search limits must be greater than zero"
     );
     anyhow::ensure!(
@@ -626,6 +627,121 @@ fn profile_toml(profile: &Profile) -> Result<String> {
     toml::to_string_pretty(&settings).context("cannot serialize server configuration")
 }
 
+#[derive(Debug, Serialize)]
+struct AppliedProfileToml {
+    state: ProfileState,
+    toml: String,
+}
+
+fn toml_error(input: &str, error: toml::de::Error) -> String {
+    if let Some(span) = error.span() {
+        let offset = span.start.min(input.len());
+        let prefix = &input[..offset];
+        let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
+        let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
+        let column = input[line_start..offset].chars().count() + 1;
+        format!("{} (line {line}, column {column})", error.message())
+    } else {
+        error.message().to_owned()
+    }
+}
+
+fn exact_units(value: usize, unit: usize, field: &str) -> Result<usize> {
+    anyhow::ensure!(
+        value % unit == 0,
+        "{field} must be an exact multiple of {unit} bytes"
+    );
+    Ok(value / unit)
+}
+
+fn profile_from_toml(profile: &Profile, input: &str, base: &Path) -> Result<Profile> {
+    let mut settings: fs_mcp_rs::settings::Settings =
+        toml::from_str(input).map_err(|error| anyhow::anyhow!(toml_error(input, error)))?;
+    for root in &mut settings.filesystem.roots {
+        if root.is_relative() {
+            *root = base.join(&*root);
+        }
+    }
+
+    let mib = 1024usize * 1024;
+    let kib = 1024usize;
+    let mut updated = profile.clone();
+    updated.roots = settings
+        .filesystem
+        .roots
+        .iter()
+        .map(|root| root.to_string_lossy().into_owned())
+        .collect();
+    updated.port = settings.server.port;
+    updated.host = settings.server.host.to_string();
+    updated.max_concurrency = settings.server.max_concurrency;
+    updated.max_io_concurrency = settings.server.max_io_concurrency;
+    updated.read_only = settings.filesystem.read_only;
+    updated.follow_links = settings.filesystem.follow_links;
+    updated.max_read_mb = exact_units(
+        settings.filesystem.max_read_bytes,
+        mib,
+        "filesystem.max_read_bytes",
+    )?;
+    updated.max_write_mb = exact_units(
+        settings.filesystem.max_write_bytes,
+        mib,
+        "filesystem.max_write_bytes",
+    )?;
+    updated.tree_max_depth = settings.filesystem.tree_max_depth;
+    updated.tree_max_entries = settings.filesystem.tree_max_entries;
+    updated.tree_max_warnings = settings.filesystem.tree_max_warnings;
+    updated.patch_max_kb = exact_units(
+        settings.filesystem.patch_max_bytes,
+        kib,
+        "filesystem.patch_max_bytes",
+    )?;
+    updated.patch_preview_kb = exact_units(
+        settings.filesystem.patch_preview_bytes,
+        kib,
+        "filesystem.patch_preview_bytes",
+    )?;
+    updated.max_search_results = settings.search.max_results;
+    updated.search_max_concurrency = settings.search.max_concurrency;
+    updated.search_worker_threads = settings.search.worker_threads;
+    updated.regex_cache_capacity = settings.search.regex_cache_capacity;
+    updated.include_hidden = settings.search.include_hidden;
+    updated.respect_gitignore = settings.search.respect_gitignore;
+    updated.terminal_enabled = settings.terminal.enabled;
+    updated.terminal_max_concurrency = settings.terminal.max_concurrency;
+    updated.terminal_default_timeout_ms = settings.terminal.default_timeout_ms;
+    updated.terminal_max_timeout_ms = settings.terminal.max_timeout_ms;
+    updated.terminal_max_output_mb = exact_units(
+        settings.terminal.max_output_bytes,
+        mib,
+        "terminal.max_output_bytes",
+    )?;
+    updated.terminal_max_read_kb = exact_units(
+        settings.terminal.max_read_bytes,
+        kib,
+        "terminal.max_read_bytes",
+    )?;
+    updated.terminal_max_wait_ms = settings.terminal.max_wait_ms;
+    updated.terminal_session_retention_ms = settings.terminal.session_retention_ms;
+    updated.oauth_enabled = settings.oauth.enabled;
+    updated.oauth_require_auth = settings.oauth.require_auth;
+    updated.oauth_issuer = settings.oauth.issuer;
+    updated.log_tools = settings.server.log_tools;
+
+    let validated = build_settings(&ServerConfig::from(&updated))?;
+    fs_mcp_rs::app::App::new(validated).context("configuration cannot be used by the server")?;
+    Ok(updated)
+}
+
+fn find_profile(state: &ProfileState, profile_id: &str) -> Result<Profile> {
+    state
+        .profiles
+        .iter()
+        .find(|profile| profile.id == profile_id)
+        .cloned()
+        .context("profile does not exist")
+}
+
 #[tauri::command]
 fn load_profiles(store: tauri::State<'_, Arc<ProfileStore>>) -> Result<ProfileState, String> {
     store
@@ -647,6 +763,78 @@ fn save_profile(
     store
         .save_profile(profile)
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn get_profile_toml(profile: Profile) -> Result<String, String> {
+    profile_toml(&profile).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn validate_profile_toml(
+    profile_id: String,
+    toml: String,
+    source_path: Option<String>,
+    store: tauri::State<'_, Arc<ProfileStore>>,
+) -> Result<String, String> {
+    let state = store
+        .load_or_initialize()
+        .map_err(|error| error.to_string())?;
+    let profile = find_profile(&state, &profile_id).map_err(|error| error.to_string())?;
+    let source = source_path.map(PathBuf::from);
+    let base = source
+        .as_deref()
+        .and_then(Path::parent)
+        .unwrap_or_else(|| store.directory());
+    let updated = profile_from_toml(&profile, &toml, base).map_err(|error| error.to_string())?;
+    profile_toml(&updated).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn apply_profile_toml(
+    profile_id: String,
+    toml: String,
+    source_path: Option<String>,
+    store: tauri::State<'_, Arc<ProfileStore>>,
+) -> Result<AppliedProfileToml, String> {
+    let state = store
+        .load_or_initialize()
+        .map_err(|error| error.to_string())?;
+    let profile = find_profile(&state, &profile_id).map_err(|error| error.to_string())?;
+    let source = source_path.map(PathBuf::from);
+    let base = source
+        .as_deref()
+        .and_then(Path::parent)
+        .unwrap_or_else(|| store.directory());
+    let updated = profile_from_toml(&profile, &toml, base).map_err(|error| error.to_string())?;
+    let normalized = profile_toml(&updated).map_err(|error| error.to_string())?;
+    let state = store
+        .save_profile(updated)
+        .map_err(|error| error.to_string())?;
+    Ok(AppliedProfileToml {
+        state,
+        toml: normalized,
+    })
+}
+
+#[tauri::command]
+fn read_toml_file(path: String) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    std::fs::read_to_string(&path)
+        .map_err(|error| format!("cannot read {}: {error}", path.display()))
+}
+
+#[tauri::command]
+fn save_text_file(path: String, content: String, overwrite: bool) -> Result<String, String> {
+    let destination = PathBuf::from(path);
+    if destination.exists() && !overwrite {
+        return Err(
+            "The selected file already exists. Confirm overwrite to replace it.".to_owned(),
+        );
+    }
+    std::fs::write(&destination, content)
+        .map_err(|error| format!("cannot save {}: {error}", destination.display()))?;
+    Ok(destination.display().to_string())
 }
 
 #[tauri::command]
@@ -961,6 +1149,11 @@ pub fn run() {
             rename_profile,
             delete_profile,
             set_active_profile,
+            get_profile_toml,
+            validate_profile_toml,
+            apply_profile_toml,
+            read_toml_file,
+            save_text_file,
             export_profile_toml,
             get_client_snippets,
             save_snippet,
@@ -1025,6 +1218,69 @@ mod configuration_tests {
         std::fs::write(&path, text).unwrap();
         let loaded = fs_mcp_rs::settings::Settings::load(&path).unwrap();
         assert_eq!(loaded.filesystem.roots.len(), 2);
+    }
+
+    #[test]
+    fn parses_toml_into_profile_and_preserves_desktop_metadata() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut profile = profile_with_roots(&[temp.path().to_str().unwrap()]);
+        profile.display_name = "Kept name".to_owned();
+        let text = profile_toml(&profile)
+            .unwrap()
+            .replace("port = 8000", "port = 8123");
+        let updated = profile_from_toml(&profile, &text, temp.path()).unwrap();
+        assert_eq!(updated.port, 8123);
+        assert_eq!(updated.id, profile.id);
+        assert_eq!(updated.display_name, "Kept name");
+        assert_eq!(updated.tunnel, profile.tunnel);
+    }
+
+    #[test]
+    fn rejects_invalid_toml_unknown_fields_roots_and_limits() {
+        let temp = tempfile::tempdir().unwrap();
+        let profile = profile_with_roots(&[temp.path().to_str().unwrap()]);
+        let valid = profile_toml(&profile).unwrap();
+
+        let syntax = profile_from_toml(&profile, "[server\n", temp.path())
+            .unwrap_err()
+            .to_string();
+        assert!(syntax.contains("line 1"));
+        assert!(
+            profile_from_toml(
+                &profile,
+                &valid.replace("port = 8000", "port = 8000\ntypo = true"),
+                temp.path(),
+            )
+            .is_err()
+        );
+        assert!(
+            profile_from_toml(
+                &profile,
+                &valid.replace(
+                    temp.path().to_str().unwrap(),
+                    temp.path().join("missing").to_str().unwrap()
+                ),
+                temp.path(),
+            )
+            .is_err()
+        );
+        assert!(
+            profile_from_toml(
+                &profile,
+                &valid.replace("max_results = 1000", "max_results = 0"),
+                temp.path(),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn toml_profile_toml_round_trip_is_stable() {
+        let temp = tempfile::tempdir().unwrap();
+        let profile = profile_with_roots(&[temp.path().to_str().unwrap()]);
+        let initial = profile_toml(&profile).unwrap();
+        let updated = profile_from_toml(&profile, &initial, temp.path()).unwrap();
+        assert_eq!(profile_toml(&updated).unwrap(), initial);
     }
 
     #[test]

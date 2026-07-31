@@ -12,4 +12,7 @@ export type SettingsProps = {
   tunnelArgs: string;
   setTunnelArgs: (value: string) => void;
   setTunnelOnProfile: (tunnel: TunnelSettings) => void;
+  tomlModified: boolean;
+  setTomlModified: (value: boolean) => void;
+  discardToml: (action: string) => Promise<boolean>;
 };

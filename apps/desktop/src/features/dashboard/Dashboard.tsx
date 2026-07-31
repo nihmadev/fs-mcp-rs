@@ -11,6 +11,7 @@ import { OverviewPanel } from "./OverviewPanel";
 import { useDashboardRuntime } from "./useDashboardRuntime";
 import { DashboardSettings } from "../settings/DashboardSettings";
 import { AppearanceSettings } from "../appearance/AppearanceSettings";
+import { confirm } from "@tauri-apps/plugin-dialog";
 
 /** Main application dashboard and navigation shell. */
 export function Dashboard({ editor, theme, onOpenSetup, onBrowse }: {
@@ -24,7 +25,14 @@ export function Dashboard({ editor, theme, onOpenSetup, onBrowse }: {
   const [tunnelProvider, setTunnelProvider] = useState<TunnelProvider>(activeProfile.tunnel?.provider ?? "cloudflared");
   const [tunnelExecutable, setTunnelExecutable] = useState(activeProfile.tunnel?.executable ?? "");
   const [tunnelArgs, setTunnelArgs] = useState(activeProfile.tunnel?.extra_args ?? "");
-  const runtime = useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, tunnelArgs });
+  const [tomlModified, setTomlModified] = useState(false);
+  const discardToml = async (action: string) => {
+    if (!tomlModified) return true;
+    const discard = await confirm(`Discard unsaved TOML changes and ${action}?`, { title: "Unsaved TOML changes", kind: "warning" });
+    if (discard) setTomlModified(false);
+    return discard;
+  };
+  const runtime = useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, tunnelArgs, discardToml });
   const endpoint = `http://${endpointHost(editor.advanced.host)}:${editor.port}/mcp`;
 
   useEffect(() => {
@@ -60,14 +68,14 @@ export function Dashboard({ editor, theme, onOpenSetup, onBrowse }: {
               <button ref={theme.themeButtonRef} type="button" aria-label={`Switch to ${theme.theme === "light" ? "dark" : "light"} theme`} onClick={theme.toggleTheme}><Icon name={theme.theme === "light" ? "dark_mode" : "light_mode"} /></button>
               <button type="button" aria-label="Minimize" onClick={() => appWindow?.minimize()}><Icon name="minimize" /></button>
               <button type="button" aria-label="Maximize" onClick={() => appWindow?.toggleMaximize()}><Icon name="check_box_outline_blank" /></button>
-              <button type="button" className="close-btn" aria-label="Close" onClick={() => appWindow?.close()}><Icon name="close" /></button>
+              <button type="button" className="close-btn" aria-label="Close" onClick={async () => { if (await discardToml("close the application")) appWindow?.close(); }}><Icon name="close" /></button>
             </div>
           </header>
-          <div className="dashboard-content" key={tab}>
+          <div className="dashboard-content">
             {tab === "overview" && <OverviewPanel running={runtime.running} busy={runtime.serverBusy} error={runtime.serverError} startServer={runtime.startServer} stopServer={runtime.stopServer} endpoint={endpoint} roots={editor.roots} selected={editor.selected} navigate={navigate} tunnelProvider={tunnelProvider} activeTunnelProvider={runtime.activeTunnelProvider} tunnelRunning={runtime.tunnelRunning} tunnelBusy={runtime.tunnelBusy} publicUrl={runtime.publicUrl} connectTunnel={runtime.connectTunnel} disconnectTunnel={runtime.disconnectTunnel} restartRequired={runtime.running && (editor.dirty || runtime.runtimeProfileId !== editor.profileState!.active_profile_id)} restartServer={runtime.restartServer} />}
             {tab === "access" && <AccessPanel roots={editor.roots} onBrowse={onBrowse} onRemove={(index) => editor.setRoots((items) => items.filter((_, itemIndex) => itemIndex !== index))} selected={editor.selected} togglePermission={editor.togglePermission} />}
             {tab === "activity" && <ActivityPanel logs={runtime.logs} clearLogs={() => runtime.setLogs([])} />}
-            {tab === "settings" && <DashboardSettings editor={editor} running={runtime.running} onOpenSetup={onOpenSetup} tunnelProvider={tunnelProvider} setTunnelProvider={setTunnelProvider} tunnelExecutable={tunnelExecutable} setTunnelExecutable={setTunnelExecutable} tunnelArgs={tunnelArgs} setTunnelArgs={setTunnelArgs} setTunnelOnProfile={setTunnelOnProfile} />}
+            <div hidden={tab !== "settings"}><DashboardSettings editor={editor} running={runtime.running} onOpenSetup={onOpenSetup} tunnelProvider={tunnelProvider} setTunnelProvider={setTunnelProvider} tunnelExecutable={tunnelExecutable} setTunnelExecutable={setTunnelExecutable} tunnelArgs={tunnelArgs} setTunnelArgs={setTunnelArgs} setTunnelOnProfile={setTunnelOnProfile} tomlModified={tomlModified} setTomlModified={setTomlModified} discardToml={discardToml} /></div>
             {tab === "appearance" && <AppearanceSettings theme={theme} />}
           </div>
           <nav className="mobile-nav" aria-label="Dashboard">{navigation.map((item) => <button key={item.id} type="button" className={tab === item.id ? "active" : ""} onClick={() => navigate(item.id)}><Icon name={item.icon} /><span>{item.label}</span></button>)}</nav>

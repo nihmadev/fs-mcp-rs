@@ -7,12 +7,12 @@
     "url": "https://github.com/nihmadev/fs-mcp-rs",
     "source": "github"
   },
-  "version": "1.2.4",
+  "version": "1.2.6",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "fs-mcp-rs",
-      "version": "1.2.4",
+      "version": "1.2.6",
       "transport": {
         "type": "stdio"
       }

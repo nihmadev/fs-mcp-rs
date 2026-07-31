@@ -10,10 +10,11 @@ type RuntimeOptions = {
   tunnelProvider: TunnelProvider;
   tunnelExecutable: string;
   tunnelArgs: string;
+  discardToml: (action: string) => Promise<boolean>;
 };
 
 /** Coordinates server/tunnel processes and the live activity event stream. */
-export function useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, tunnelArgs }: RuntimeOptions) {
+export function useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, tunnelArgs, discardToml }: RuntimeOptions) {
   const [running, setRunning] = useState(false);
   const [serverBusy, setServerBusy] = useState(false);
   const [serverError, setServerError] = useState("");
@@ -78,6 +79,7 @@ export function useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, 
     setServerBusy(true);
     setServerError("");
     try {
+      if (!await discardToml("save the GUI profile and start the server")) return false;
       if (editor.dirty && !(await editor.saveProfile())) return false;
       await invoke("start_server", { profileId });
       setRunning(true);
@@ -89,13 +91,14 @@ export function useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, 
     } finally {
       setServerBusy(false);
     }
-  }, [editor.dirty, editor.saveProfile, profileId]);
+  }, [editor.dirty, editor.saveProfile, profileId, discardToml]);
 
   /** Saves edits and replaces the currently running server instance. */
   const restartServer = useCallback(async () => {
     setServerBusy(true);
     setServerError("");
     try {
+      if (!await discardToml("save the GUI profile and restart the server")) return;
       if (!(await editor.saveProfile())) return;
       if (tunnelRunning) await invoke("stop_tunnel");
       await invoke("stop_server");
@@ -109,7 +112,7 @@ export function useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, 
     } finally {
       setServerBusy(false);
     }
-  }, [editor.saveProfile, tunnelRunning, profileId]);
+  }, [editor.saveProfile, tunnelRunning, profileId, discardToml]);
 
   /** Stops the server and clears all related runtime state. */
   const stopServer = useCallback(async () => {

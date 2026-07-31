@@ -541,6 +541,7 @@ body,
 
 button:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 [role="tabpanel"]:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent);
   outline-offset: 2px;
@@ -813,7 +814,9 @@ h1 { font-size: 36px; font-weight: 500; letter-spacing: -.025em; }
 .settings-notice { display: flex; align-items: center; gap: 10px; padding: 12px 16px; color: var(--on-secondary-container); border-radius: var(--shape-medium); background: var(--secondary-container); font-size: 13px; }
 .settings-notice .material-symbols-outlined { font-size: 19px; }
 .settings-tabs { width: 100%; margin-top: 4px; }
+.settings-tabs button { min-width: 0; padding-inline: 10px; }
 .settings-tab-panel { display: grid; gap: 24px; }
+.settings-tab-panel[hidden] { display: none; }
 .settings-section-title { justify-content: space-between; }
 .settings-section-title > span { color: var(--on-surface-variant); font-size: 11px; font-weight: 600; }
 .settings-fields { display: grid; gap: 16px; padding: 22px 0; }
@@ -961,6 +964,27 @@ h1 { font-size: 36px; font-weight: 500; letter-spacing: -.025em; }
 .snippet-actions > button:hover { background: var(--surface-container-highest); }
 .snippet-actions .material-symbols-outlined { font-size: 18px; }
 
+.advanced-configuration { padding-bottom: 24px; }
+.toml-editor-copy { padding: 22px 0 16px; }
+.toml-editor-copy h3 { margin: 0 0 6px; font-size: 17px; font-weight: 500; }
+.toml-editor-copy p { margin: 0; color: var(--on-surface-variant); font-size: 12px; line-height: 1.5; }
+.toml-state { padding: 4px 9px; border-radius: 12px; background: var(--surface-container-high); }
+.toml-state.state-modified { color: var(--on-secondary-container); background: var(--secondary-container); }
+.toml-state.state-valid { color: var(--on-primary-container); background: var(--primary-container); }
+.toml-state.state-invalid { color: var(--on-error-container); background: var(--error-container); }
+.toml-editor-field { display: grid; gap: 8px; color: var(--on-surface-variant); font-size: 12px; font-weight: 600; }
+.toml-editor-field textarea { width: 100%; min-height: 430px; resize: vertical; padding: 16px; color: var(--on-surface); border: 1px solid var(--outline); border-radius: var(--shape-medium); outline: 0; background: var(--surface-container-lowest); font: 12px/1.55 var(--technical-font); tab-size: 2; white-space: pre; overflow: auto; }
+.toml-editor-field textarea:focus { padding: 15px; border: 2px solid var(--primary); }
+.toml-editor-field textarea[aria-invalid="true"] { border-color: var(--error); }
+.toml-actions { display: grid; grid-template-columns: auto auto 1fr auto auto auto; align-items: center; gap: 10px; padding-top: 16px; }
+.toml-actions .outlined-button, .toml-actions .primary-button { position: static; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.toml-apply .material-symbols-outlined { font-size: 18px; }
+.toml-apply:disabled .material-symbols-outlined { animation: none; }
+.toml-apply:not(:disabled) .material-symbols-outlined:first-child { animation: none; }
+.toml-result { display: flex; align-items: flex-start; gap: 9px; margin-top: 14px; padding: 12px 14px; color: var(--on-secondary-container); border-radius: var(--shape-medium); background: var(--secondary-container); font-size: 12px; line-height: 1.45; }
+.toml-result.invalid { color: var(--on-error-container); background: var(--error-container); }
+.toml-result .material-symbols-outlined { flex: 0 0 auto; font-size: 18px; }
+
 .dialog-scrim { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, #000 42%, transparent); animation: dialog-scrim-enter var(--motion-duration-short4) var(--motion-easing-standard-decelerate) both; }
 @keyframes dialog-scrim-enter { from { opacity: 0; } to { opacity: 1; } }
 .profile-dialog { display: grid; width: min(420px, 100%); gap: 18px; padding: 24px; color: var(--on-surface); border-radius: 28px; background: var(--surface-container-high); box-shadow: 0 8px 28px rgba(0, 0, 0, .22); animation: dialog-enter var(--motion-duration-medium1) var(--motion-easing-emphasized-decelerate) both; }
@@ -1007,6 +1031,10 @@ h1 { font-size: 36px; font-weight: 500; letter-spacing: -.025em; }
   .remote-card { align-items: stretch; flex-direction: column; }
   .remote-actions { justify-content: flex-start; flex-wrap: wrap; }
   .remote-actions .remote-endpoint { width: 100%; flex-basis: 100%; }
+  .settings-tabs { overflow-x: auto; justify-content: flex-start; }
+  .settings-tabs button { min-width: 130px; flex: 1 0 auto; }
+  .toml-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .toml-actions > span { display: none; }
 }
 
 @media (min-width: 761px) and (max-width: 900px) {
@@ -1029,6 +1057,9 @@ h1 { font-size: 36px; font-weight: 500; letter-spacing: -.025em; }
   .footer-actions { padding: 0 16px; }
   .profile-management-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .profile-action-label { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .toml-editor-field textarea { min-height: 360px; }
+  .toml-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toml-actions > button { width: 100%; }
   .dialog-scrim { align-items: end; padding: 12px; }
   .profile-dialog { width: 100%; padding: 24px 20px 20px; border-radius: 28px; }
   .appearance-page .page-intro-actions { align-items: flex-start; flex-direction: column; gap: 14px; }

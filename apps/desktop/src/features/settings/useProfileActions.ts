@@ -4,7 +4,7 @@ import { invoke, type InvokeArgs } from "../../lib/tauri";
 import type { ClientSnippet, ProfileDialogKind, ProfileEditor, ProfileState } from "../../types";
 
 /** Profile management and export operations used by the settings page. */
-export function useProfileActions(editor: ProfileEditor) {
+export function useProfileActions(editor: ProfileEditor, discardToml: (action: string) => Promise<boolean>) {
   const [actionMessage, setActionMessage] = useState("");
   const [snippets, setSnippets] = useState<ClientSnippet[]>([]);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -13,6 +13,7 @@ export function useProfileActions(editor: ProfileEditor) {
 
   /** Switches profiles after confirming the loss of unsaved edits. */
   const selectProfile = async (id: string) => {
+    if (!await discardToml("switch profiles")) return;
     if (editor.dirty && !await confirm("Discard unsaved changes and switch profiles?", { title: "Switch profile", kind: "warning" })) return;
     try {
       const state = await invoke<ProfileState>("set_active_profile", { id });
@@ -27,6 +28,7 @@ export function useProfileActions(editor: ProfileEditor) {
 
   /** Executes a profile mutation and applies the backend's active profile. */
   const profileAction = async (command: string, args: InvokeArgs) => {
+    if (!await discardToml("change the profile")) return "Profile change cancelled";
     try {
       const state = await invoke<ProfileState>(command, args);
       editor.setProfileState(state);
@@ -50,6 +52,7 @@ export function useProfileActions(editor: ProfileEditor) {
   /** Exports the current saved profile as TOML. */
   const exportToml = async () => {
     try {
+      if (!await discardToml("save and export the GUI profile")) return;
       if (editor.dirty && !await editor.saveProfile()) return;
       const filename = editor.profileName.replace(/[<>:"/\\|?*]+/g, "-") || "profile";
       const path = await save({ defaultPath: `${filename}.toml`, filters: [{ name: "TOML configuration", extensions: ["toml"] }] });
@@ -69,6 +72,7 @@ export function useProfileActions(editor: ProfileEditor) {
   /** Loads generated MCP client snippets for the active profile. */
   const loadSnippets = async () => {
     try {
+      if (!await discardToml("save the GUI profile and generate snippets")) return;
       if (editor.dirty && !await editor.saveProfile()) return;
       setSnippets(await invoke<ClientSnippet[]>("get_client_snippets", { profileId: activeId }));
       setActionMessage("");

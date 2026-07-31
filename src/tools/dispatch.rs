@@ -20,20 +20,18 @@ enum ToolOutput {
 }
 
 fn tool_result(output: ToolOutput) -> Result<Value, String> {
-    match output {
-        ToolOutput::Text(text) => Ok(json!({
-            "content": [{"type": "text", "text": text}],
-            "isError": false
-        })),
-        ToolOutput::Structured(value) => {
-            let text = serde_json::to_string(&value).map_err(|e| e.to_string())?;
-            Ok(json!({
-                "content": [{"type": "text", "text": text}],
-                "structuredContent": value,
-                "isError": false
-            }))
-        }
+    let output = match output {
+        ToolOutput::Text(text) => text,
+        ToolOutput::Structured(value) => serde_json::to_string(&value).map_err(|e| e.to_string())?,
+    };
+    let mut result = json!({
+        "content": [{"type": "text", "text": output}],
+        "isError": false
+    });
+    if let Ok(Value::Object(object)) = serde_json::from_str::<Value>(&output) {
+        result["structuredContent"] = Value::Object(object);
     }
+    Ok(result)
 }
 
 #[derive(Deserialize)]
@@ -97,7 +95,6 @@ pub async fn call_tool(app: &App, params: Value) -> Result<Value, String> {
     } else {
         app.io_permits.clone()
     };
-    let queue_started = Instant::now();
     let _permit = match permits.acquire_owned().await {
         Ok(p) => p,
         Err(_) => {
@@ -112,22 +109,13 @@ pub async fn call_tool(app: &App, params: Value) -> Result<Value, String> {
             return Err(err_msg);
         }
     };
-    let queue_us = queue_started.elapsed().as_micros() as u64;
-    let execution_started = Instant::now();
     let app_clone = app.clone();
     let res = tokio::task::spawn_blocking(move || call_tool_blocking(&app_clone, call)).await;
 
-    let execution_us = execution_started.elapsed().as_micros() as u64;
-    let total_us = total_started.elapsed().as_micros() as u64;
     let total_ms = total_started.elapsed().as_millis();
 
     match res {
-        Ok(Ok(mut result)) => {
-            result["_meta"] = json!({
-                "totalDurationUs": total_us,
-                "queueDurationUs": queue_us,
-                "executionDurationUs": execution_us
-            });
+        Ok(Ok(result)) => {
             if app.settings.server.log_tools {
                 if arg_summary.is_empty() {
                     eprintln!("[OK] {} ({} ms)", tool_name, total_ms);
@@ -423,12 +411,14 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
         }
         _ => return Err(format!("unknown tool: {}", call.name)),
     };
+    // Keep the legacy wire shape for strict MCP clients. Only object-shaped
+    // JSON results are exposed as structured content, as in pre-1.2.5 builds.
     tool_result(output)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ToolOutput, summarize_arguments, tool_result};
+    use super::summarize_arguments;
     use serde_json::json;
 
     #[test]
@@ -438,11 +428,4 @@ mod tests {
         assert!(summary.contains("..."));
     }
 
-    #[test]
-    fn structured_result_keeps_text_and_object_representations() {
-        let value = json!({"entries": ["a", "b"]});
-        let result = tool_result(ToolOutput::Structured(value.clone())).unwrap();
-        assert_eq!(result["structuredContent"], value);
-        assert_eq!(result["content"][0]["text"], "{\"entries\":[\"a\",\"b\"]}");
-    }
 }

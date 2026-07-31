@@ -247,6 +247,10 @@ impl ProfileStore {
         self.directory.join(format!("profile-{id}.toml"))
     }
 
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
+
     fn profiles_path(&self) -> PathBuf {
         self.directory.join(PROFILES_FILE)
     }

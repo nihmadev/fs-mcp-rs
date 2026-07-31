@@ -33,7 +33,7 @@ function HighlightedJson({ content }: { content: string }) {
 }
 
 /** Profile switcher, persistence actions, and generated client snippets. */
-export function ProfileSection({ editor, actions }: { editor: ProfileEditor; actions: ReturnTypeOfProfileActions }) {
+export function ProfileSection({ editor, actions, discardToml }: { editor: ProfileEditor; actions: ReturnTypeOfProfileActions; discardToml: (action: string) => Promise<boolean> }) {
   const state = editor.profileState!;
   return (
     <section className="dashboard-card settings-section profile-section">
@@ -53,7 +53,7 @@ export function ProfileSection({ editor, actions }: { editor: ProfileEditor; act
       </div>
       <div className="profile-action-label"><span>Configuration</span><small>{editor.dirty ? "Unsaved changes" : "Profile is up to date"}</small></div>
       <div className="configuration-actions">
-        <button className="outlined-button save-profile-button" type="button" disabled={!editor.dirty} onClick={() => editor.saveProfile().then((saved) => saved && actions.setActionMessage("Profile saved"))}><Icon name="save" /> Save profile</button>
+        <button className="outlined-button save-profile-button" type="button" disabled={!editor.dirty} onClick={async () => { if (await discardToml("save the GUI changes") && await editor.saveProfile()) actions.setActionMessage("Profile saved"); }}><Icon name="save" /> Save profile</button>
         <button className="outlined-button" type="button" onClick={actions.exportToml}><Icon name="download" /> Export TOML</button>
         <button className="outlined-button" type="button" onClick={actions.loadSnippets}><Icon name="integration_instructions" /> Client snippets</button>
       </div>
