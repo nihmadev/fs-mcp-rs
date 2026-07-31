@@ -266,9 +266,12 @@ impl Searcher {
             return Err(SearchError::EmptyPattern);
         }
         let root = self.policy.read_path(root)?;
-        let needle = pattern.to_lowercase();
+        let matcher = Arc::new(Matcher::new(self, pattern, true)?);
         let max_results = self.max_results;
-        let results = Arc::new(Mutex::new(Vec::new()));
+        if max_results == 0 {
+            return Ok(Vec::new());
+        }
+        let results = Arc::new(Mutex::new(Vec::with_capacity(max_results.min(256))));
         let mut walker = WalkBuilder::new(root);
         walker
             .hidden(!self.hidden)
@@ -278,17 +281,12 @@ impl Searcher {
             .threads(self.worker_threads.max(1));
         walker.build_parallel().run(|| {
             let results = Arc::clone(&results);
-            let needle = needle.clone();
+            let matcher = Arc::clone(&matcher);
             Box::new(move |entry| {
                 let Ok(entry) = entry else {
                     return WalkState::Continue;
                 };
-                if !entry
-                    .file_name()
-                    .to_string_lossy()
-                    .to_lowercase()
-                    .contains(&needle)
-                {
+                if !matcher.is_match(&entry.file_name().to_string_lossy()) {
                     return WalkState::Continue;
                 }
                 let mut output = results.lock().unwrap_or_else(|p| p.into_inner());
