@@ -5,17 +5,18 @@
 //! enforces deadlines and records the final session state. All externally
 //! visible reads and retained output are size-bounded.
 
+mod process;
+
 use serde::Serialize;
 use std::{
     collections::{HashMap, VecDeque},
-    io::{Read, Write},
+    io::Write,
     path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
+    process::ChildStdin,
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicU64, Ordering},
     },
-    thread,
     time::{Duration, Instant},
 };
 use thiserror::Error;
@@ -213,34 +214,34 @@ struct TerminalInner {
     sessions: Mutex<HashMap<String, Arc<Session>>>,
 }
 
-struct Session {
-    id: String,
-    started: Instant,
-    max_output_bytes: usize,
-    state: Mutex<SessionState>,
-    changed: Condvar,
+pub(super) struct Session {
+    pub(super) id: String,
+    pub(super) started: Instant,
+    pub(super) max_output_bytes: usize,
+    pub(super) state: Mutex<SessionState>,
+    pub(super) changed: Condvar,
 }
 
-struct SessionState {
-    status: SessionStatus,
-    exit_code: Option<i32>,
-    timed_out: bool,
-    truncated: bool,
-    error: Option<String>,
-    completed_at: Option<Instant>,
-    kill_requested: bool,
-    stdin: Option<ChildStdin>,
-    events: VecDeque<BufferedEvent>,
-    buffered_bytes: usize,
-    next_cursor: u64,
-    dropped_until: u64,
+pub(super) struct SessionState {
+    pub(super) status: SessionStatus,
+    pub(super) exit_code: Option<i32>,
+    pub(super) timed_out: bool,
+    pub(super) truncated: bool,
+    pub(super) error: Option<String>,
+    pub(super) completed_at: Option<Instant>,
+    pub(super) kill_requested: bool,
+    pub(super) stdin: Option<ChildStdin>,
+    pub(super) events: VecDeque<BufferedEvent>,
+    pub(super) buffered_bytes: usize,
+    pub(super) next_cursor: u64,
+    pub(super) dropped_until: u64,
 }
 
-struct BufferedEvent {
-    start_cursor: u64,
-    end_cursor: u64,
-    stream: OutputStream,
-    bytes: Vec<u8>,
+pub(super) struct BufferedEvent {
+    pub(super) start_cursor: u64,
+    pub(super) end_cursor: u64,
+    pub(super) stream: OutputStream,
+    pub(super) bytes: Vec<u8>,
 }
 
 impl Terminal {
@@ -303,7 +304,7 @@ impl Terminal {
             });
         }
 
-        let mut child = spawn_shell(command, cwd, true)?;
+        let mut child = process::spawn_shell(command, cwd, true)?;
         let pid = child.id();
         let stdout = child
             .stdout
@@ -339,9 +340,9 @@ impl Terminal {
         sessions.insert(id.clone(), session.clone());
         drop(sessions);
 
-        let stdout_reader = spawn_reader(session.clone(), stdout, OutputStream::Stdout);
-        let stderr_reader = spawn_reader(session.clone(), stderr, OutputStream::Stderr);
-        spawn_waiter(
+        let stdout_reader = process::spawn_reader(session.clone(), stdout, OutputStream::Stdout);
+        let stderr_reader = process::spawn_reader(session.clone(), stderr, OutputStream::Stderr);
+        process::spawn_waiter(
             session,
             child,
             Duration::from_millis(timeout_ms),
@@ -610,132 +611,12 @@ impl Drop for TerminalInner {
     }
 }
 
-fn spawn_shell(
-    command: &str,
-    cwd: Option<&Path>,
-    interactive: bool,
-) -> Result<Child, std::io::Error> {
-    #[cfg(windows)]
-    let mut process = {
-        use std::os::windows::process::CommandExt;
-        let mut value = Command::new("cmd.exe");
-        value.args(["/D", "/S", "/C"]);
-        let command = format!("chcp 65001 >nul & {command}");
-        value.raw_arg(format!("\"{command}\""));
-        value
-    };
-    #[cfg(not(windows))]
-    let mut process = {
-        use std::os::unix::process::CommandExt;
-        let mut value = Command::new("/bin/sh");
-        value.args(["-c", command]);
-        value.process_group(0);
-        value
-    };
-
-    if let Some(cwd) = cwd {
-        process.current_dir(cwd);
-    }
-    process
-        .stdin(if interactive {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-}
-
-fn spawn_reader(
-    session: Arc<Session>,
-    mut reader: impl Read + Send + 'static,
+pub(super) fn append_output(
+    session: &Session,
+    state: &mut SessionState,
     stream: OutputStream,
-) -> thread::JoinHandle<Result<(), std::io::Error>> {
-    thread::spawn(move || {
-        let mut buffer = [0_u8; 16 * 1024];
-        loop {
-            let read = reader.read(&mut buffer)?;
-            if read == 0 {
-                return Ok(());
-            }
-            if let Ok(mut state) = session.state.lock() {
-                append_output(&session, &mut state, stream, &buffer[..read]);
-                session.changed.notify_all();
-            } else {
-                return Err(std::io::Error::other("terminal session lock was poisoned"));
-            }
-        }
-    })
-}
-
-fn spawn_waiter(
-    session: Arc<Session>,
-    mut child: Child,
-    timeout: Duration,
-    stdout_reader: thread::JoinHandle<Result<(), std::io::Error>>,
-    stderr_reader: thread::JoinHandle<Result<(), std::io::Error>>,
+    bytes: &[u8],
 ) {
-    thread::spawn(move || {
-        // One waiter owns child reaping. Reader threads must finish before the
-        // final state is published so a terminal read cannot miss trailing bytes.
-        let deadline = session.started + timeout;
-        let (status, final_status, timed_out, error) = loop {
-            match child.try_wait() {
-                Ok(Some(status)) => break (Some(status), SessionStatus::Exited, false, None),
-                Ok(None) => {}
-                Err(error) => break (None, SessionStatus::Failed, false, Some(error.to_string())),
-            }
-
-            let kill_requested = session
-                .state
-                .lock()
-                .map(|state| state.kill_requested)
-                .unwrap_or(true);
-            if kill_requested || Instant::now() >= deadline {
-                let timed_out = !kill_requested;
-                let final_status = if timed_out {
-                    SessionStatus::TimedOut
-                } else {
-                    SessionStatus::Killed
-                };
-                let error = terminate_process_tree(&mut child)
-                    .err()
-                    .map(|e| e.to_string());
-                let status = child.wait().ok();
-                break (status, final_status, timed_out, error);
-            }
-            thread::sleep(Duration::from_millis(20));
-        };
-
-        let stdout_error = stdout_reader
-            .join()
-            .map_err(|_| "stdout reader thread panicked".to_owned())
-            .and_then(|result| result.map_err(|error| error.to_string()))
-            .err();
-        let stderr_error = stderr_reader
-            .join()
-            .map_err(|_| "stderr reader thread panicked".to_owned())
-            .and_then(|result| result.map_err(|error| error.to_string()))
-            .err();
-
-        if let Ok(mut state) = session.state.lock() {
-            state.status = if error.is_some() || stdout_error.is_some() || stderr_error.is_some() {
-                SessionStatus::Failed
-            } else {
-                final_status
-            };
-            state.exit_code = status.and_then(|value| value.code());
-            state.timed_out = timed_out;
-            state.stdin.take();
-            state.completed_at = Some(Instant::now());
-            state.error = error.or(stdout_error).or(stderr_error);
-            session.changed.notify_all();
-        }
-    });
-}
-
-fn append_output(session: &Session, state: &mut SessionState, stream: OutputStream, bytes: &[u8]) {
     // Retain only the newest bytes. Cursor values still account for discarded
     // prefixes, which makes truncation observable to incremental readers.
     let full_start = state.next_cursor;
@@ -774,34 +655,6 @@ fn has_output_after(state: &SessionState, cursor: u64) -> bool {
 
 fn lock<T>(mutex: &Mutex<T>) -> Result<MutexGuard<'_, T>, TerminalError> {
     mutex.lock().map_err(|_| TerminalError::LockPoisoned)
-}
-
-fn terminate_process_tree(child: &mut Child) -> Result<(), std::io::Error> {
-    #[cfg(windows)]
-    {
-        let pid = child.id().to_string();
-        let status = Command::new("taskkill")
-            .args(["/PID", &pid, "/T", "/F"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        if !status.is_ok_and(|value| value.success()) {
-            child.kill()?;
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        let group = format!("-{}", child.id());
-        let status = Command::new("kill")
-            .args(["-KILL", "--", &group])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        if !status.is_ok_and(|value| value.success()) {
-            child.kill()?;
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]
