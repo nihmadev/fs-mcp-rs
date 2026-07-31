@@ -5,7 +5,7 @@
 
 use super::catalog::tools;
 use crate::app::App;
-use fs_mcp_rs::{
+use crate::{
     patch::{ApplyPatchRequest, apply_patch},
     protocol::SUPPORTED_PROTOCOL_VERSIONS,
     tree::ListTreeRequest,
@@ -22,7 +22,7 @@ struct ToolCall {
     arguments: Value,
 }
 
-pub(crate) fn tool_error(message: String) -> Value {
+pub fn tool_error(message: String) -> Value {
     let code = error_code(&message);
     json!({"content":[{"type":"text","text":message}],"structuredContent":{"error":{"code":code,"message":message}},"isError":true})
 }
@@ -54,9 +54,9 @@ fn error_code(message: &str) -> &'static str {
 }
 
 /// Applies per-class concurrency limits and executes blocking tools off-runtime.
-pub(crate) async fn call_tool(app: &App, params: Value) -> Result<Value, String> {
+pub async fn call_tool(app: &App, params: Value) -> Result<Value, String> {
     let total_started = Instant::now();
-    let call: ToolCall =    match serde_json::from_value(params) {
+    let call: ToolCall = match serde_json::from_value(params) {
         Ok(c) => c,
         Err(e) => {
             let err_msg = e.to_string();
@@ -178,7 +178,7 @@ fn call_tool_blocking(app: &App, call: ToolCall) -> Result<Value, String> {
             struct Empty {}
             let _: Empty = serde_json::from_value(arguments.clone()).map_err(|e| e.to_string())?;
             let cfg = &app.settings;
-            serde_json::to_string(&json!({"server":{"name":"fs-mcp-rs","version":env!("CARGO_PKG_VERSION")},"protocolVersions":SUPPORTED_PROTOCOL_VERSIONS,"osFamily":std::env::consts::FAMILY,"roots":cfg.filesystem.roots.iter().map(|p| fs_mcp_rs::security::display_path(p)).collect::<Vec<_>>(),"filesystem":{"readOnly":cfg.filesystem.read_only,"followLinks":cfg.filesystem.follow_links,"maxReadBytes":cfg.filesystem.max_read_bytes,"maxWriteBytes":cfg.filesystem.max_write_bytes},"search":{"maxResults":cfg.search.max_results,"maxConcurrency":cfg.search.max_concurrency},"tree":{"maxDepth":cfg.filesystem.tree_max_depth,"maxEntries":cfg.filesystem.tree_max_entries,"maxWarnings":cfg.filesystem.tree_max_warnings},"terminal":{"enabled":cfg.terminal.enabled,"defaultTimeoutMs":cfg.terminal.default_timeout_ms,"maxTimeoutMs":cfg.terminal.max_timeout_ms,"maxOutputBytes":cfg.terminal.max_output_bytes,"maxReadBytes":cfg.terminal.max_read_bytes,"maxWaitMs":cfg.terminal.max_wait_ms,"sessionRetentionMs":cfg.terminal.session_retention_ms,"maxConcurrency":cfg.terminal.max_concurrency},"tools":tools().iter().map(|t|t.name).collect::<Vec<_>>() })).map_err(|e| e.to_string())?
+            serde_json::to_string(&json!({"server":{"name":"fs-mcp-rs","version":env!("CARGO_PKG_VERSION")},"protocolVersions":SUPPORTED_PROTOCOL_VERSIONS,"osFamily":std::env::consts::FAMILY,"roots":cfg.filesystem.roots.iter().map(|p| crate::security::display_path(p)).collect::<Vec<_>>(),"filesystem":{"readOnly":cfg.filesystem.read_only,"followLinks":cfg.filesystem.follow_links,"maxReadBytes":cfg.filesystem.max_read_bytes,"maxWriteBytes":cfg.filesystem.max_write_bytes},"search":{"maxResults":cfg.search.max_results,"maxConcurrency":cfg.search.max_concurrency},"tree":{"maxDepth":cfg.filesystem.tree_max_depth,"maxEntries":cfg.filesystem.tree_max_entries,"maxWarnings":cfg.filesystem.tree_max_warnings},"terminal":{"enabled":cfg.terminal.enabled,"defaultTimeoutMs":cfg.terminal.default_timeout_ms,"maxTimeoutMs":cfg.terminal.max_timeout_ms,"maxOutputBytes":cfg.terminal.max_output_bytes,"maxReadBytes":cfg.terminal.max_read_bytes,"maxWaitMs":cfg.terminal.max_wait_ms,"sessionRetentionMs":cfg.terminal.session_retention_ms,"maxConcurrency":cfg.terminal.max_concurrency},"tools":tools().iter().map(|t|t.name).collect::<Vec<_>>() })).map_err(|e| e.to_string())?
         }
         "list_tree" => {
             let req: ListTreeRequest =

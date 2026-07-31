@@ -2,7 +2,7 @@
 
 use crate::oauth::OAuthStore;
 use anyhow::Result;
-use fs_mcp_rs::{
+use crate::{
     filesystem::Filesystem, search::Searcher, security::Policy, settings::Settings,
     terminal::Terminal, tree::TreeLister,
 };
@@ -11,20 +11,20 @@ use tokio::sync::Semaphore;
 
 #[derive(Clone)]
 /// Shared services and concurrency gates for HTTP and STDIO request handlers.
-pub(crate) struct App {
-    pub(crate) fs: Filesystem,
-    pub(crate) search: Searcher,
-    pub(crate) tree: TreeLister,
-    pub(crate) settings: Arc<Settings>,
-    pub(crate) terminal: Terminal,
-    pub(crate) oauth: OAuthStore,
-    pub(crate) permits: Arc<Semaphore>,
-    pub(crate) io_permits: Arc<Semaphore>,
-    pub(crate) search_permits: Arc<Semaphore>,
+pub struct App {
+    pub fs: Filesystem,
+    pub search: Searcher,
+    pub tree: TreeLister,
+    pub settings: Arc<Settings>,
+    pub terminal: Terminal,
+    pub oauth: OAuthStore,
+    pub permits: Arc<Semaphore>,
+    pub io_permits: Arc<Semaphore>,
+    pub search_permits: Arc<Semaphore>,
 }
 
 impl App {
-    pub(crate) fn new(settings: Settings) -> Result<Self> {
+    pub fn new(settings: Settings) -> Result<Self> {
         let policy = Policy::new(
             settings.filesystem.roots.clone(),
             settings.filesystem.read_only,

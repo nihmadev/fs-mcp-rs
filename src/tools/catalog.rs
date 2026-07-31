@@ -1,8 +1,8 @@
-use fs_mcp_rs::protocol::Tool;
+use crate::protocol::Tool;
 use serde_json::{Value, json};
 
 /// Builds the stable MCP tool catalog advertised to clients.
-pub(crate) fn tools() -> Vec<Tool> {
+pub fn tools() -> Vec<Tool> {
     vec![
         tool(
             "get_capabilities",

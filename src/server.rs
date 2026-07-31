@@ -2,7 +2,8 @@
 //!
 //! Exposes `/mcp` HTTP POST endpoint, `/health` check, CORS middleware, and optional OAuth 2.0 / OIDC endpoints.
 
-use crate::{app::App, oauth};
+use crate::{app::App, handler, oauth};
+use crate::protocol::Request as McpRequest;
 use anyhow::Result;
 use axum::{
     Json, Router,
@@ -12,13 +13,12 @@ use axum::{
     response::{IntoResponse, Response as HttpResponse},
     routing::{get, post},
 };
-use fs_mcp_rs::protocol::Request as McpRequest;
 use serde_json::json;
 use std::path::Path;
 use tokio::net::TcpListener;
 
 /// Starts the HTTP server listener with configured routes and graceful shutdown handler.
-pub(crate) async fn serve(app: App, config_path: &Path) -> Result<()> {
+pub async fn serve(app: App, config_path: &Path) -> Result<()> {
     let address = (app.settings.server.host, app.settings.server.port);
     let mut router = Router::new()
         .route("/", get(root_get))
@@ -145,7 +145,7 @@ async fn handle(
         }
     }
 
-    match crate::handler::handle_request(&app, request).await {
+    match handler::handle_request(&app, request).await {
         Some(response) => Json(response).into_response(),
         None => StatusCode::ACCEPTED.into_response(),
     }

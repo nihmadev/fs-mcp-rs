@@ -52,3 +52,12 @@ pub mod tree;
 
 pub mod cli_format;
 pub mod wizard;
+
+/// Server infrastructure (always available).
+pub mod app;
+pub mod handler;
+pub mod server;
+pub mod stdio;
+pub mod oauth;
+pub mod launcher;
+pub mod tools;
