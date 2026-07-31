@@ -18,7 +18,7 @@ name = "fs-mcp-rs"
 path = "src/main.rs"
 
 [workspace]
-members = ["crates/benchmarks"]
+members = ["crates/benchmarks", "apps/desktop/src-tauri"]
 resolver = "2"
 
 [workspace.package]
@@ -67,6 +67,7 @@ tempfile = { version = "3.20", default-features = false }
 anyhow = { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0", default-features = false }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
 
 [profile.release]
 opt-level = 3
