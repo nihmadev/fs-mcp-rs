@@ -5,7 +5,7 @@ const path = require('path');
 const https = require('https');
 const { spawnSync, execSync } = require('child_process');
 
-const VERSION = "1.2.2";
+const VERSION = "1.2.3";
 const REPO = "nihmadev/fs-mcp-rs";
 
 function getPlatformInfo() {
