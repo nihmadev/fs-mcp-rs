@@ -4,8 +4,8 @@
 //! containing the configuration file and rejects unsafe or nonsensical limits.
 
 use anyhow::{Context, Result, bail};
-use clap::{Parser, Subcommand};
-use serde::Deserialize;
+use clap::{Parser, Subcommand, ValueEnum};
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     net::IpAddr,
@@ -50,6 +50,45 @@ pub enum Commands {
         #[arg(long)]
         stdio: bool,
     },
+    /// Start the HTTP MCP server together with optional companion services
+    Run {
+        /// Path to TOML configuration file
+        #[arg(long, short, value_name = "FILE")]
+        config: Option<PathBuf>,
+        /// Start an ngrok HTTP tunnel to the configured server port
+        #[arg(long, conflicts_with_all = ["cloudflared", "zrok"])]
+        ngrok: bool,
+        /// Start a Cloudflare Quick Tunnel to the configured server
+        #[arg(long, conflicts_with_all = ["ngrok", "zrok"])]
+        cloudflared: bool,
+        /// Start a public zrok share to the configured server
+        #[arg(long, conflicts_with_all = ["ngrok", "cloudflared"])]
+        zrok: bool,
+        /// How the tunnel process is displayed
+        #[arg(long, alias = "ngrok-window", value_enum, default_value_t = CompanionWindow::New)]
+        tunnel_window: CompanionWindow,
+        /// Path or command name used to launch ngrok
+        #[arg(long, default_value = "ngrok", value_name = "PROGRAM")]
+        ngrok_bin: PathBuf,
+        /// Extra argument passed to ngrok; may be repeated
+        #[arg(long, value_name = "ARG", action = clap::ArgAction::Append)]
+        ngrok_arg: Vec<String>,
+        /// Path or command name used to launch cloudflared
+        #[arg(long, default_value = "cloudflared", value_name = "PROGRAM")]
+        cloudflared_bin: PathBuf,
+        /// Extra argument passed to cloudflared; may be repeated
+        #[arg(long, value_name = "ARG", action = clap::ArgAction::Append)]
+        cloudflared_arg: Vec<String>,
+        /// Path or command name used to launch zrok
+        #[arg(long, default_value = "zrok", value_name = "PROGRAM")]
+        zrok_bin: PathBuf,
+        /// Extra argument passed to zrok; may be repeated
+        #[arg(long, value_name = "ARG", action = clap::ArgAction::Append)]
+        zrok_arg: Vec<String>,
+        /// Allowed filesystem root directory paths
+        #[arg(value_name = "PATHS")]
+        root_paths: Vec<PathBuf>,
+    },
     /// Run interactive terminal setup wizard (with arrow key selection)
     Init {
         /// Output path for generated configuration file
@@ -64,6 +103,17 @@ pub enum Commands {
     },
     /// List all available MCP tools provided by the server
     Tools,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq)]
+/// Display mode for a companion process started by [`Commands::Run`].
+pub enum CompanionWindow {
+    /// Open a separate console window on Windows; inherit the terminal elsewhere.
+    New,
+    /// Run without a separate visible console, keeping output in the current terminal.
+    Hidden,
+    /// Keep the process attached to the current terminal.
+    Inherit,
 }
 
 #[derive(Debug, Subcommand)]
@@ -106,7 +156,7 @@ pub fn resolve_config_path(explicit: Option<&Path>) -> Option<PathBuf> {
     candidates.into_iter().find(|candidate| candidate.is_file())
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 /// Complete validated server configuration.
 pub struct Settings {
@@ -123,7 +173,7 @@ pub struct Settings {
     pub oauth: OAuthSettings,
 }
 
-#[derive(Clone, Debug, Deserialize, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
 #[serde(deny_unknown_fields)]
 /// OAuth 2.0 / OIDC authentication settings.
 pub struct OAuthSettings {
@@ -138,7 +188,7 @@ pub struct OAuthSettings {
     pub issuer: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 /// HTTP listener and request scheduling settings.
 pub struct Server {
@@ -155,7 +205,7 @@ pub struct Server {
     pub log_tools: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 /// Filesystem access and per-operation size limits.
 pub struct Filesystem {
@@ -186,7 +236,7 @@ pub struct Filesystem {
     pub patch_preview_bytes: usize,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 /// Parallel search limits and traversal behavior.
 pub struct Search {
@@ -204,7 +254,7 @@ pub struct Search {
     pub respect_gitignore: bool,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 /// Command execution, buffering, and session-retention settings.
 pub struct Terminal {
@@ -265,7 +315,8 @@ impl Settings {
     /// Loads default configuration template and applies the specified `roots`.
     pub fn default_with_roots(roots: Vec<PathBuf>) -> Result<Self> {
         let text = include_str!("../configs/default.toml");
-        let mut settings: Self = toml::from_str(text).context("invalid default configuration template")?;
+        let mut settings: Self =
+            toml::from_str(text).context("invalid default configuration template")?;
         if !roots.is_empty() {
             settings.filesystem.roots = roots;
         }
@@ -405,5 +456,45 @@ max_output_bytes = 1024
             Some(Commands::Init { output }) => assert_eq!(output, PathBuf::from("my_config.toml")),
             _ => panic!("Expected Init subcommand"),
         }
+    }
+
+    #[test]
+    fn parses_run_with_ngrok_without_affecting_legacy_roots() {
+        let cli = Cli::try_parse_from([
+            "fs-mcp-rs",
+            "run",
+            "--ngrok",
+            "--ngrok-window",
+            "hidden",
+            "--ngrok-arg=--region=eu",
+            "project",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Some(Commands::Run {
+                ngrok,
+                tunnel_window,
+                ngrok_arg,
+                root_paths,
+                ..
+            }) => {
+                assert!(ngrok);
+                assert_eq!(tunnel_window, CompanionWindow::Hidden);
+                assert_eq!(ngrok_arg, ["--region=eu"]);
+                assert_eq!(root_paths, [PathBuf::from("project")]);
+            }
+            _ => panic!("expected run command"),
+        }
+
+        let legacy = Cli::try_parse_from(["fs-mcp-rs", "project"]).unwrap();
+        assert!(legacy.command.is_none());
+        assert_eq!(legacy.root_paths, [PathBuf::from("project")]);
+    }
+
+    #[test]
+    fn tunnel_providers_are_mutually_exclusive() {
+        assert!(Cli::try_parse_from(["fs-mcp-rs", "run", "--ngrok", "--cloudflared"]).is_err());
+        assert!(Cli::try_parse_from(["fs-mcp-rs", "run", "--zrok"]).is_ok());
     }
 }
