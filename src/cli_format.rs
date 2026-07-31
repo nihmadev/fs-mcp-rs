@@ -2,7 +2,75 @@
 
 use crate::protocol::Tool;
 use crate::settings::Settings;
+use serde::Serialize;
 use std::path::Path;
+
+/// A client-ready MCP configuration snippet.
+#[derive(Clone, Debug, Serialize)]
+pub struct ClientSnippet {
+    /// Stable identifier used by graphical clients.
+    pub id: &'static str,
+    /// Human-readable client or transport name.
+    pub title: &'static str,
+    /// JSON configuration text.
+    pub content: String,
+}
+
+fn normalized_path(path: &Path) -> String {
+    let abs = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let mut value = abs.display().to_string().replace('\\', "/");
+    if let Some(stripped) = value.strip_prefix("//?/") {
+        value = stripped.to_owned();
+    }
+    value
+}
+
+/// Builds the STDIO and HTTP snippets shared by the CLI and desktop app.
+pub fn client_snippets(
+    config_path: &Path,
+    exe_name: &str,
+    server_name: &str,
+    host: &str,
+    port: u16,
+) -> Vec<ClientSnippet> {
+    let path = normalized_path(config_path);
+    let display_host = match host {
+        "0.0.0.0" | "::" => "127.0.0.1",
+        value => value,
+    };
+    let url_host = if display_host.contains(':') {
+        format!("[{display_host}]")
+    } else {
+        display_host.to_owned()
+    };
+    let stdio = serde_json::json!({
+        "mcpServers": {
+            server_name: {
+                "command": exe_name,
+                "args": ["serve", "--stdio", "--config", path]
+            }
+        }
+    });
+    let http = serde_json::json!({
+        "mcpServers": {
+            server_name: {
+                "url": format!("http://{url_host}:{port}/mcp")
+            }
+        }
+    });
+    vec![
+        ClientSnippet {
+            id: "claude-desktop-stdio",
+            title: "Claude Desktop (STDIO)",
+            content: serde_json::to_string_pretty(&stdio).expect("JSON value is serializable"),
+        },
+        ClientSnippet {
+            id: "mcp-http",
+            title: "Cursor / MCP HTTP",
+            content: serde_json::to_string_pretty(&http).expect("JSON value is serializable"),
+        },
+    ]
+}
 
 /// Generates annotated default TOML configuration string.
 pub fn default_config_toml() -> &'static str {
@@ -55,13 +123,7 @@ pub fn print_tools_catalog(tools: &[Tool]) {
 
 /// Generates and prints JSON configuration snippets for AI clients (Claude Desktop, Cursor, etc.).
 pub fn print_client_snippets(config_path: &Path, exe_name: &str) {
-    let abs_config = config_path
-        .canonicalize()
-        .unwrap_or_else(|_| config_path.to_path_buf());
-    let mut path_str = abs_config.display().to_string().replace('\\', "/");
-    if let Some(stripped) = path_str.strip_prefix("//?/") {
-        path_str = stripped.to_string();
-    }
+    let snippets = client_snippets(config_path, exe_name, "fs-mcp-rs", "127.0.0.1", 8000);
 
     println!("\n================================================================================");
     println!("                MCP Client Integration Snippets for fs-mcp-rs                   ");
@@ -70,30 +132,13 @@ pub fn print_client_snippets(config_path: &Path, exe_name: &str) {
     println!("\n[1] Claude Desktop (stdio / command execution mode)");
     println!("Add to your `claude_desktop_config.json`:");
     println!("--------------------------------------------------------------------------------");
-    println!(
-        r#"{{
-  "mcpServers": {{
-    "fs-mcp-rs": {{
-      "command": "{exe_name}",
-      "args": ["serve", "--config", "{path_str}"]
-    }}
-  }}
-}}"#
-    );
+    println!("{}", snippets[0].content);
     println!("--------------------------------------------------------------------------------");
 
     println!("\n[2] Cursor / VS Code / Roo Code / Windsurf (HTTP SSE mode)");
     println!("Add to your `mcp.json` or client settings:");
     println!("--------------------------------------------------------------------------------");
-    println!(
-        r#"{{
-  "mcpServers": {{
-    "fs-mcp-rs": {{
-      "url": "http://127.0.0.1:8000/mcp"
-    }}
-  }}
-}}"#
-    );
+    println!("{}", snippets[1].content);
     println!("--------------------------------------------------------------------------------");
     println!(
         "\nTip: Make sure `fs-mcp-rs` is in your PATH or specify the full path to the executable.\n"

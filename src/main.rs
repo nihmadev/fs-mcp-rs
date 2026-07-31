@@ -1,20 +1,18 @@
 use anyhow::Result;
 use clap::Parser;
+use fs_mcp_rs::app;
 use fs_mcp_rs::cli_format::{
     default_config_toml, print_client_snippets, print_config_summary, print_tools_catalog,
 };
+use fs_mcp_rs::launcher;
 use fs_mcp_rs::protocol::Tool;
+use fs_mcp_rs::server;
 use fs_mcp_rs::settings::{Cli, Commands, ConfigCommands, Settings, resolve_config_path};
+use fs_mcp_rs::stdio;
+use fs_mcp_rs::tools;
 use fs_mcp_rs::wizard::run_wizard;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
-
-mod app;
-mod handler;
-mod oauth;
-mod server;
-mod stdio;
-mod tools;
 
 /// Binary entry point for `fs-mcp-rs`.
 ///
@@ -63,7 +61,8 @@ async fn main() -> Result<()> {
             }
         },
         Some(Commands::Serve { config, stdio }) => {
-            let (settings, config_path) = load_settings(config.as_deref().or(cli.config.as_deref()), cli.root_paths)?;
+            let (settings, config_path) =
+                load_settings(config.as_deref().or(cli.config.as_deref()), cli.root_paths)?;
             let app = app::App::new(settings)?;
             if stdio || cli.stdio {
                 stdio::serve(app).await
@@ -71,6 +70,54 @@ async fn main() -> Result<()> {
                 let path_display = config_path.unwrap_or_else(|| PathBuf::from("default"));
                 server::serve(app, &path_display).await
             }
+        }
+        Some(Commands::Run {
+            config,
+            ngrok,
+            cloudflared,
+            zrok,
+            tunnel_window,
+            ngrok_bin,
+            ngrok_arg,
+            cloudflared_bin,
+            cloudflared_arg,
+            zrok_bin,
+            zrok_arg,
+            root_paths,
+        }) => {
+            if cli.stdio {
+                anyhow::bail!("`run` manages HTTP tunnels and cannot be combined with --stdio");
+            }
+            let (settings, config_path) =
+                load_settings(config.as_deref().or(cli.config.as_deref()), root_paths)?;
+            let host = settings.server.host;
+            let port = settings.server.port;
+            let app = app::App::new(settings)?;
+            let tunnel = if ngrok {
+                Some(launcher::Tunnel::Ngrok {
+                    program: &ngrok_bin,
+                    extra_args: &ngrok_arg,
+                })
+            } else if cloudflared {
+                Some(launcher::Tunnel::Cloudflared {
+                    program: &cloudflared_bin,
+                    extra_args: &cloudflared_arg,
+                })
+            } else if zrok {
+                Some(launcher::Tunnel::Zrok {
+                    program: &zrok_bin,
+                    extra_args: &zrok_arg,
+                })
+            } else {
+                None
+            };
+            let _tunnel = tunnel
+                .map(|tunnel| {
+                    launcher::CompanionProcess::start_tunnel(tunnel, host, port, tunnel_window)
+                })
+                .transpose()?;
+            let path_display = config_path.unwrap_or_else(|| PathBuf::from("default"));
+            server::serve(app, &path_display).await
         }
         None => {
             let is_interactive = std::io::stdout().is_terminal() && std::io::stdin().is_terminal();
@@ -91,7 +138,10 @@ async fn main() -> Result<()> {
 
 /// Resolves configuration settings either from an explicit TOML file, auto-discovered TOML file,
 /// or positional CLI root path arguments falling back to default settings template.
-fn load_settings(explicit: Option<&Path>, root_paths: Vec<PathBuf>) -> Result<(Settings, Option<PathBuf>)> {
+fn load_settings(
+    explicit: Option<&Path>,
+    root_paths: Vec<PathBuf>,
+) -> Result<(Settings, Option<PathBuf>)> {
     if let Some(resolved) = resolve_config_path(explicit) {
         let settings = Settings::load(&resolved)?;
         return Ok((settings, Some(resolved)));
