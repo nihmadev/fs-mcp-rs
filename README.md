@@ -1,7 +1,5 @@
 <!-- mcp-name: io.github.nihmadev/fs-mcp-rs -->
 ![fs-mcp-rs](assets/preview.png)
-# fs-mcp-rs
-
 [![Crates.io](https://img.shields.io/crates/v/fs-mcp-rs?logo=rust&label=crates.io)](https://crates.io/crates/fs-mcp-rs)
 [![docs.rs](https://img.shields.io/docsrs/fs-mcp-rs?logo=docs.rs&label=docs.rs)](https://docs.rs/fs-mcp-rs)
 [![License](https://img.shields.io/crates/l/fs-mcp-rs?label=license)](LICENSE)
