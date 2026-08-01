@@ -351,7 +351,7 @@ mod tests {
 
     fn lister(root: &Path) -> TreeLister {
         TreeLister::new(
-            Policy::new(vec![root.to_owned()], false, false).unwrap(),
+            Policy::new(vec![root.to_owned()], false, false, false).unwrap(),
             5,
             2,
             4,

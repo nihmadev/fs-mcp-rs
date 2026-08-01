@@ -34,6 +34,7 @@ pub enum AccessError {
 /// canonical paths, rather than untrusted lexical path components.
 pub struct Policy {
     roots: Vec<PathBuf>,
+    unrestricted_access: bool,
     read_only: bool,
     follow_links: bool,
 }
@@ -47,11 +48,17 @@ impl Policy {
     /// cannot be canonicalized.
     pub fn new(
         roots: Vec<PathBuf>,
+        unrestricted_access: bool,
         read_only: bool,
         follow_links: bool,
     ) -> Result<Self, AccessError> {
-        if roots.is_empty() {
+        if roots.is_empty() && !unrestricted_access {
             return Err(AccessError::Invalid("no allowed roots configured".into()));
+        }
+        if !roots.is_empty() && unrestricted_access {
+            return Err(AccessError::Invalid(
+                "allowed roots cannot be combined with unrestricted access".into(),
+            ));
         }
         let roots = roots
             .into_iter()
@@ -62,6 +69,7 @@ impl Policy {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             roots,
+            unrestricted_access,
             read_only,
             follow_links,
         })
@@ -192,6 +200,9 @@ impl Policy {
     }
 
     fn ensure_root(&self, path: &Path) -> Result<(), AccessError> {
+        if self.unrestricted_access {
+            return Ok(());
+        }
         self.roots
             .iter()
             .any(|root| path.starts_with(root))
@@ -240,7 +251,7 @@ mod tests {
     fn rejects_paths_outside_root() {
         let root = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
-        let policy = Policy::new(vec![root.path().to_owned()], false, false).unwrap();
+        let policy = Policy::new(vec![root.path().to_owned()], false, false, false).unwrap();
         assert!(matches!(
             policy.read_path(outside.path()),
             Err(AccessError::OutsideRoot(_))
@@ -250,7 +261,7 @@ mod tests {
     #[test]
     fn read_only_rejects_writes() {
         let root = tempfile::tempdir().unwrap();
-        let policy = Policy::new(vec![root.path().to_owned()], true, false).unwrap();
+        let policy = Policy::new(vec![root.path().to_owned()], false, true, false).unwrap();
         assert!(matches!(
             policy.write_path(root.path().join("file")),
             Err(AccessError::ReadOnly)
@@ -260,7 +271,25 @@ mod tests {
     #[test]
     fn accepts_single_component_write_path() {
         let root = std::env::current_dir().unwrap();
-        let policy = Policy::new(vec![root], false, false).unwrap();
+        let policy = Policy::new(vec![root], false, false, false).unwrap();
         assert!(policy.write_path("new-file").is_ok());
+    }
+
+    #[test]
+    fn unrestricted_policy_accepts_paths_without_roots_and_keeps_read_only() {
+        let outside = tempfile::tempdir().unwrap();
+        let policy = Policy::new(Vec::new(), true, true, false).unwrap();
+        assert!(policy.read_path(outside.path()).is_ok());
+        assert!(matches!(
+            policy.write_path(outside.path().join("file")),
+            Err(AccessError::ReadOnly)
+        ));
+    }
+
+    #[test]
+    fn access_modes_are_mutually_exclusive() {
+        let root = tempfile::tempdir().unwrap();
+        assert!(Policy::new(Vec::new(), false, false, false).is_err());
+        assert!(Policy::new(vec![root.path().to_owned()], true, false, false).is_err());
     }
 }

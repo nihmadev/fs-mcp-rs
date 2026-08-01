@@ -359,7 +359,7 @@ mod tests {
     #[test]
     fn writes_reads_and_hashes() {
         let root = tempfile::tempdir().unwrap();
-        let policy = Policy::new(vec![root.path().to_owned()], false, false).unwrap();
+        let policy = Policy::new(vec![root.path().to_owned()], false, false, false).unwrap();
         let filesystem = Filesystem::new(policy, 1024, 1024);
         let path = root.path().join("sample.txt");
         let hash = filesystem.write(&path, b"hello").unwrap();
@@ -370,7 +370,7 @@ mod tests {
     #[test]
     fn rejects_oversized_reads_and_writes() {
         let root = tempfile::tempdir().unwrap();
-        let policy = Policy::new(vec![root.path().to_owned()], false, false).unwrap();
+        let policy = Policy::new(vec![root.path().to_owned()], false, false, false).unwrap();
         let filesystem = Filesystem::new(policy, 4, 4);
         let path = root.path().join("sample");
         assert!(matches!(
@@ -387,7 +387,7 @@ mod tests {
     #[test]
     fn creates_missing_parent_directories_when_requested() {
         let root = tempfile::tempdir().unwrap();
-        let policy = Policy::new(vec![root.path().to_owned()], false, false).unwrap();
+        let policy = Policy::new(vec![root.path().to_owned()], false, false, false).unwrap();
         let filesystem = Filesystem::new(policy, 1024, 1024);
         let path = root.path().join("reports").join("2026").join("result.txt");
 
@@ -402,7 +402,7 @@ mod tests {
     #[test]
     fn requires_existing_parent_by_default() {
         let root = tempfile::tempdir().unwrap();
-        let policy = Policy::new(vec![root.path().to_owned()], false, false).unwrap();
+        let policy = Policy::new(vec![root.path().to_owned()], false, false, false).unwrap();
         let filesystem = Filesystem::new(policy, 1024, 1024);
         let path = root.path().join("missing").join("result.txt");
 
@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn read_only_mode_never_creates_parent_directories() {
         let root = tempfile::tempdir().unwrap();
-        let policy = Policy::new(vec![root.path().to_owned()], true, false).unwrap();
+        let policy = Policy::new(vec![root.path().to_owned()], false, true, false).unwrap();
         let filesystem = Filesystem::new(policy, 1024, 1024);
         let path = root.path().join("missing").join("result.txt");
 

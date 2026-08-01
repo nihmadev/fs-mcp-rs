@@ -211,6 +211,9 @@ pub struct Server {
 pub struct Filesystem {
     /// Allowed filesystem roots; relative values are resolved from the config directory.
     pub roots: Vec<PathBuf>,
+    #[serde(default)]
+    /// Whether filesystem tools may access any path available to the server process.
+    pub unrestricted_access: bool,
     /// Whether all mutating filesystem operations are disabled.
     pub read_only: bool,
     /// Maximum output bytes returned by one session read.
@@ -359,8 +362,11 @@ impl Settings {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.filesystem.roots.is_empty() {
+        if !self.filesystem.unrestricted_access && self.filesystem.roots.is_empty() {
             bail!("filesystem.roots must contain at least one directory");
+        }
+        if self.filesystem.unrestricted_access && !self.filesystem.roots.is_empty() {
+            bail!("filesystem.roots must be empty when unrestricted_access is enabled");
         }
         if self.server.max_concurrency == 0 || self.server.max_io_concurrency == 0 {
             bail!("server concurrency limits must be greater than zero");
@@ -409,6 +415,21 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unrestricted_access_defaults_false_and_controls_root_validation() {
+        let text = include_str!("../configs/default.toml");
+        let legacy = text.replace("unrestricted_access = false\n", "");
+        let legacy_settings: Settings = toml::from_str(&legacy).unwrap();
+        assert!(!legacy_settings.filesystem.unrestricted_access);
+
+        let mut unrestricted = legacy_settings.clone();
+        unrestricted.filesystem.roots.clear();
+        unrestricted.filesystem.unrestricted_access = true;
+        assert!(unrestricted.validate().is_ok());
+        unrestricted.filesystem.roots.push(PathBuf::from("."));
+        assert!(unrestricted.validate().is_err());
+    }
 
     #[test]
     fn rejects_unknown_fields() {

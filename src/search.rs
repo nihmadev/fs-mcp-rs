@@ -311,7 +311,7 @@ mod tests {
 
     fn searcher(root: &Path) -> Searcher {
         Searcher::new(
-            Policy::new(vec![root.to_owned()], false, false).unwrap(),
+            Policy::new(vec![root.to_owned()], false, false, false).unwrap(),
             100,
             2,
             2,

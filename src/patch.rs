@@ -370,7 +370,7 @@ mod tests {
 
     fn fs(root: &Path, read_only: bool) -> Filesystem {
         Filesystem::new(
-            Policy::new(vec![root.to_owned()], read_only, false).unwrap(),
+            Policy::new(vec![root.to_owned()], false, read_only, false).unwrap(),
             4096,
             4096,
         )

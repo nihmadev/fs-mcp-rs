@@ -10,6 +10,7 @@ max_io_concurrency = 16
 
 [filesystem]
 roots = [".."]
+unrestricted_access = false
 read_only = false
 max_read_bytes = 8388608
 max_write_bytes = 8388608
@@ -49,4 +50,3 @@ session_retention_ms = 300000
 enabled = true
 # Require Bearer token authentication for /mcp requests
 require_auth = false
-

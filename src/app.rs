@@ -1,11 +1,11 @@
 //! Application state context shared across handlers and transports.
 
 use crate::oauth::OAuthStore;
-use anyhow::Result;
 use crate::{
     filesystem::Filesystem, search::Searcher, security::Policy, settings::Settings,
     terminal::Terminal, tree::TreeLister,
 };
+use anyhow::Result;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
@@ -27,6 +27,7 @@ impl App {
     pub fn new(settings: Settings) -> Result<Self> {
         let policy = Policy::new(
             settings.filesystem.roots.clone(),
+            settings.filesystem.unrestricted_access,
             settings.filesystem.read_only,
             settings.filesystem.follow_links,
         )?;
