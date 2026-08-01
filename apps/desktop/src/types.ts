@@ -28,6 +28,7 @@ export type Profile = {
   id: string;
   display_name: string;
   roots: string[];
+  unrestricted_access: boolean;
   port: number;
   host: string;
   max_concurrency: number;
@@ -139,6 +140,8 @@ export type ProfileEditor = {
   setProfileName: (value: string) => void;
   roots: string[];
   setRoots: Dispatch<SetStateAction<string[]>>;
+  unrestrictedAccess: boolean;
+  setUnrestrictedAccess: (value: boolean) => void;
   port: string;
   setPort: (value: string) => void;
   selected: Set<Permission>;

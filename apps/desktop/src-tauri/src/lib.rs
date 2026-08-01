@@ -15,6 +15,7 @@ use profiles::{Profile, ProfileState, ProfileStore};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub roots: Vec<String>,
+    pub unrestricted_access: bool,
     pub port: u16,
     pub host: String,
     pub max_concurrency: usize,
@@ -452,8 +453,12 @@ mod activity_tests {
 
 fn build_settings(config: &ServerConfig) -> Result<fs_mcp_rs::settings::Settings> {
     anyhow::ensure!(
-        !config.roots.is_empty(),
-        "at least one filesystem root is required"
+        config.unrestricted_access || !config.roots.is_empty(),
+        "at least one filesystem root or unrestricted access is required"
+    );
+    anyhow::ensure!(
+        !config.unrestricted_access || config.roots.is_empty(),
+        "filesystem roots cannot be combined with unrestricted access"
     );
     anyhow::ensure!(
         config.roots.iter().all(|root| !root.trim().is_empty()),
@@ -515,6 +520,8 @@ fn build_settings(config: &ServerConfig) -> Result<fs_mcp_rs::settings::Settings
     let kib = 1024usize;
     let roots = config.roots.iter().map(PathBuf::from).collect();
     let mut settings = fs_mcp_rs::settings::Settings::default_with_roots(roots)?;
+    settings.filesystem.roots = config.roots.iter().map(PathBuf::from).collect();
+    settings.filesystem.unrestricted_access = config.unrestricted_access;
     settings.server.host = host;
     settings.server.port = config.port;
     settings.server.max_concurrency = config.max_concurrency;
@@ -574,6 +581,7 @@ impl From<&Profile> for ServerConfig {
     fn from(profile: &Profile) -> Self {
         Self {
             roots: profile.roots.clone(),
+            unrestricted_access: profile.unrestricted_access,
             port: profile.port,
             host: profile.host.clone(),
             max_concurrency: profile.max_concurrency,
@@ -672,6 +680,7 @@ fn profile_from_toml(profile: &Profile, input: &str, base: &Path) -> Result<Prof
         .iter()
         .map(|root| root.to_string_lossy().into_owned())
         .collect();
+    updated.unrestricted_access = settings.filesystem.unrestricted_access;
     updated.port = settings.server.port;
     updated.host = settings.server.host.to_string();
     updated.max_concurrency = settings.server.max_concurrency;
@@ -1218,6 +1227,31 @@ mod configuration_tests {
         std::fs::write(&path, text).unwrap();
         let loaded = fs_mcp_rs::settings::Settings::load(&path).unwrap();
         assert_eq!(loaded.filesystem.roots.len(), 2);
+    }
+
+    #[test]
+    fn unrestricted_profile_exports_and_builds_embedded_server_settings() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut profile = Profile::default();
+        profile.unrestricted_access = true;
+
+        let text = profile_toml(&profile).unwrap();
+        assert!(text.contains("roots = []"));
+        assert!(text.contains("unrestricted_access = true"));
+
+        let path = temp.path().join("profile.toml");
+        std::fs::write(&path, text).unwrap();
+        let loaded = fs_mcp_rs::settings::Settings::load(&path).unwrap();
+        assert!(loaded.filesystem.unrestricted_access);
+        assert!(loaded.filesystem.roots.is_empty());
+        assert!(fs_mcp_rs::app::App::new(loaded).is_ok());
+    }
+
+    #[test]
+    fn rejects_ambiguous_profile_access_modes() {
+        let mut profile = profile_with_roots(&["C:/workspace"]);
+        profile.unrestricted_access = true;
+        assert!(build_settings(&ServerConfig::from(&profile)).is_err());
     }
 
     #[test]

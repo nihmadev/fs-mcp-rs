@@ -137,7 +137,7 @@ export function useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, 
     setTunnelBusy(true);
     setServerError("");
     try {
-      if (!editor.roots.length) {
+      if (!editor.unrestrictedAccess && !editor.roots.length) {
         setServerError("Choose a workspace folder before starting remote access.");
         return;
       }
@@ -159,7 +159,7 @@ export function useDashboardRuntime({ editor, tunnelProvider, tunnelExecutable, 
     } finally {
       setTunnelBusy(false);
     }
-  }, [editor.roots, editor.advanced.host, editor.port, running, startServer, tunnelArgs, tunnelProvider, tunnelExecutable]);
+  }, [editor.roots, editor.unrestrictedAccess, editor.advanced.host, editor.port, running, startServer, tunnelArgs, tunnelProvider, tunnelExecutable]);
 
   /** Stops the public tunnel without stopping the local server. */
   const disconnectTunnel = useCallback(async () => {

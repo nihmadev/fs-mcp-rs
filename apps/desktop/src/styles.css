@@ -410,11 +410,11 @@ h1 { margin: 0; color: var(--on-surface); font-size: 30px; font-weight: 500; let
 .log-duration, .log-client, .log-row time { color: var(--on-surface-variant); font-family: var(--technical-font); font-size: 12px; }
 .log-row time { text-align: right; }
 
-.folder-access-card, .permission-settings-card, .settings-section { padding: 0 18px; }
+.folder-access-card, .permission-settings-card, .settings-section, .access-scope-card { padding: 0 18px; }
 .access-path.large { min-height: 58px; margin-bottom: 16px; padding: 0 14px; border-radius: 11px; background: var(--surface-container); font-family: var(--technical-font); font-size: 12px; font-weight: 500; }
 .access-path.large .path-identity { flex: 1; }
-.permission-settings-card .settings-row, .settings-section .settings-row { padding-inline: 0; }
-.permission-settings-card .settings-row:hover, .settings-section .settings-row:hover { background: transparent; }
+.permission-settings-card .settings-row, .settings-section .settings-row, .access-scope-card .settings-row { padding-inline: 0; }
+.permission-settings-card .settings-row:hover, .settings-section .settings-row:hover, .access-scope-card .settings-row:hover { background: transparent; }
 .settings-section-title { display: flex; height: 48px; align-items: center; border-bottom: 1px solid var(--outline-variant); }
 .settings-section-title h3 { margin: 0; font-size: 12px; font-weight: 650; }
 .settings-link { display: flex; width: 100%; min-height: 64px; align-items: center; gap: 12px; padding: 10px 0; text-align: left; border: 0; border-bottom: 1px solid var(--outline-variant); background: transparent; cursor: pointer; }
@@ -786,12 +786,17 @@ h1 { font-size: 36px; font-weight: 500; letter-spacing: -.025em; }
 
 .folder-access-card,
 .permission-settings-card,
-.settings-section { padding: 0 24px; }
+.settings-section,
+.access-scope-card { padding: 0 24px; }
 .card-title-row { min-height: 76px; }
 .card-title-row > button { font-size: 13px; }
 .access-path.large { min-height: 64px; margin-bottom: 20px; border-radius: 14px; background: var(--surface-container-high); }
 .permission-settings-card .settings-row,
 .settings-section .settings-row { min-height: 76px; }
+.access-scope-heading { padding: 18px 0 12px; border-bottom: 1px solid var(--outline-variant); }
+.access-scope-heading h3 { margin: 0 0 4px; font-size: 16px; font-weight: 500; }
+.access-scope-heading p { margin: 0; color: var(--on-surface-variant); font-size: 12px; }
+.access-scope-card .settings-row { min-height: 68px; }
 .settings-section-title { height: 56px; }
 .settings-section-title h3 { font-size: 14px; font-weight: 600; }
 .supporting-setting { display: flex; min-height: 64px; align-items: center; gap: 14px; padding: 0 20px; color: var(--on-surface-variant); border-radius: var(--shape-large); background: var(--surface-container-low); font-size: 13px; }

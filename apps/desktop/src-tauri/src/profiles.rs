@@ -20,6 +20,8 @@ pub struct Profile {
     pub id: String,
     pub display_name: String,
     pub roots: Vec<String>,
+    #[serde(default)]
+    pub unrestricted_access: bool,
     pub port: u16,
     pub host: String,
     pub max_concurrency: usize,
@@ -60,6 +62,7 @@ impl Default for Profile {
             id: new_id(),
             display_name: "My project".to_owned(),
             roots: Vec::new(),
+            unrestricted_access: false,
             port: 8000,
             host: "127.0.0.1".to_owned(),
             max_concurrency: 32,
@@ -295,6 +298,12 @@ fn validate_identity(profile: &Profile) -> Result<()> {
         bail!("profile id is required");
     }
     required_name(&profile.display_name)?;
+    if profile.unrestricted_access && !profile.roots.is_empty() {
+        bail!("filesystem roots cannot be combined with unrestricted access");
+    }
+    if !profile.unrestricted_access && profile.roots.is_empty() {
+        bail!("at least one filesystem root is required");
+    }
     Ok(())
 }
 
@@ -399,5 +408,29 @@ mod tests {
         let profile = Profile::default();
         let json = serde_json::to_string(&profile).unwrap();
         assert_eq!(serde_json::from_str::<Profile>(&json).unwrap(), profile);
+    }
+
+    #[test]
+    fn unrestricted_access_defaults_false_for_new_and_legacy_profiles() {
+        assert!(!Profile::default().unrestricted_access);
+        let json = serde_json::to_string(&Profile::default()).unwrap();
+        let legacy = json.replace(",\"unrestricted_access\":false", "");
+        assert!(
+            !serde_json::from_str::<Profile>(&legacy)
+                .unwrap()
+                .unrestricted_access
+        );
+    }
+
+    #[test]
+    fn profile_access_modes_are_mutually_exclusive() {
+        let mut profile = Profile::default();
+        assert!(validate_identity(&profile).is_err());
+        profile.unrestricted_access = true;
+        assert!(validate_identity(&profile).is_ok());
+        profile.roots.push("C:/workspace".to_owned());
+        assert!(validate_identity(&profile).is_err());
+        profile.unrestricted_access = false;
+        assert!(validate_identity(&profile).is_ok());
     }
 }

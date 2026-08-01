@@ -4,7 +4,7 @@ import { CopyButton } from "../../components/ui/CopyButton";
 import { Icon } from "../../components/ui/Icon";
 
 /** Server status, endpoint, workspace, and remote access dashboard. */
-export function OverviewPanel({ running, busy, error, startServer, stopServer, endpoint, roots, selected, navigate, tunnelProvider, activeTunnelProvider, tunnelRunning, tunnelBusy, publicUrl, connectTunnel, disconnectTunnel, restartRequired, restartServer }: {
+export function OverviewPanel({ running, busy, error, startServer, stopServer, endpoint, roots, unrestrictedAccess, selected, navigate, tunnelProvider, activeTunnelProvider, tunnelRunning, tunnelBusy, publicUrl, connectTunnel, disconnectTunnel, restartRequired, restartServer }: {
   running: boolean;
   busy: boolean;
   error: string;
@@ -12,6 +12,7 @@ export function OverviewPanel({ running, busy, error, startServer, stopServer, e
   stopServer: () => void;
   endpoint: string;
   roots: string[];
+  unrestrictedAccess: boolean;
   selected: Set<Permission>;
   navigate: (tab: DashboardTab) => void;
   tunnelProvider: TunnelProvider;
@@ -37,8 +38,8 @@ export function OverviewPanel({ running, busy, error, startServer, stopServer, e
       <div className="overview-grid">
         <section className="dashboard-card connection-card"><div className="card-heading"><div><h3>Endpoint</h3><p>Streamable HTTP</p></div></div><div className="endpoint-field"><code>{endpoint}</code><CopyButton value={endpoint} label="Copy endpoint" /></div></section>
         <section className="dashboard-card access-card">
-          <div className="card-heading"><div><h3>Workspace</h3><p>{roots.length} {roots.length === 1 ? "root" : "roots"}, {selected.size} permissions</p></div></div>
-          <div className="access-path"><span className="path-identity"><Icon name="folder" /><span>{roots[0] || "No folder selected"}{roots.length > 1 ? ` +${roots.length - 1} more` : ""}</span></span></div>
+          <div className="card-heading"><div><h3>Workspace</h3><p>{unrestrictedAccess ? "Unrestricted filesystem access" : `${roots.length} ${roots.length === 1 ? "root" : "roots"}`}, {selected.size} permissions</p></div></div>
+          <div className="access-path"><span className="path-identity"><Icon name="folder" /><span>{unrestrictedAccess ? "Any available path" : roots[0] || "No folder selected"}{!unrestrictedAccess && roots.length > 1 ? ` +${roots.length - 1} more` : ""}</span></span></div>
           <button className="inline-action" type="button" onClick={() => navigate("access")}>Manage access <Icon name="chevron_right" /></button>
         </section>
         <section className={`dashboard-card remote-card ${tunnelRunning ? "connected" : ""}`}>

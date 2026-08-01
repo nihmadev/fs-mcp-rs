@@ -7,7 +7,8 @@ import type { AdvancedConfig, Permission, Profile, ProfileEditor, ProfileState }
 /** Owns editable profile fields, persistence, dirty tracking, and initial loading. */
 export function useProfileEditor(): ProfileEditor {
   const [profileName, setProfileName] = useState("My project");
-  const [roots, setRoots] = useState<string[]>([]);
+  const [roots, setRootsState] = useState<string[]>([]);
+  const [unrestrictedAccess, setUnrestrictedAccessState] = useState(false);
   const [port, setPort] = useState("8000");
   const [selected, setSelected] = useState<Set<Permission>>(new Set(["read", "search"]));
   const [toolLogs, setToolLogs] = useState(true);
@@ -23,7 +24,8 @@ export function useProfileEditor(): ProfileEditor {
   /** Copies a backend profile into all editable form fields. */
   const applyProfile = useCallback((profile: Profile) => {
     setProfileName(profile.display_name);
-    setRoots(profile.roots);
+    setRootsState(profile.roots);
+    setUnrestrictedAccessState(profile.unrestricted_access);
     setPort(String(profile.port));
     setToolLogs(profile.log_tools);
     setMaxReadMb(String(profile.max_read_mb));
@@ -49,7 +51,7 @@ export function useProfileEditor(): ProfileEditor {
     const stored = profileState?.profiles.find((item) => item.id === profileState.active_profile_id);
     if (!stored) throw new Error("Active profile is unavailable");
     return profileFromForm(stored, {
-      profileName, roots, port, selected, toolLogs, maxReadMb, searchResults, includeHidden, advanced,
+      profileName, roots, unrestrictedAccess, port, selected, toolLogs, maxReadMb, searchResults, includeHidden, advanced,
     });
   };
 
@@ -79,11 +81,24 @@ export function useProfileEditor(): ProfileEditor {
     });
   };
 
+  const setRoots: ProfileEditor["setRoots"] = (value) => {
+    setRootsState((current) => {
+      const next = typeof value === "function" ? value(current) : value;
+      if (next.length > 0) setUnrestrictedAccessState(false);
+      return next;
+    });
+  };
+
+  const setUnrestrictedAccess = (value: boolean) => {
+    setUnrestrictedAccessState(value);
+    if (value) setRootsState([]);
+  };
+
   let dirty = false;
   if (profileState) dirty = JSON.stringify(currentProfile()) !== savedSignature;
 
   return {
-    profileName, setProfileName, roots, setRoots, port, setPort, selected, togglePermission,
+    profileName, setProfileName, roots, setRoots, unrestrictedAccess, setUnrestrictedAccess, port, setPort, selected, togglePermission,
     toolLogs, setToolLogs, maxReadMb, setMaxReadMb, searchResults, setSearchResults,
     includeHidden, setIncludeHidden, advanced, setAdvanced, profileState, setProfileState,
     profileError, loadingProfiles, applyProfile, currentProfile, saveProfile, dirty,

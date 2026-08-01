@@ -4,6 +4,7 @@ import type { AdvancedConfig, Permission, Profile } from "../types";
 export type ProfileFormValues = {
   profileName: string;
   roots: string[];
+  unrestrictedAccess: boolean;
   port: string;
   selected: Set<Permission>;
   toolLogs: boolean;
@@ -61,6 +62,7 @@ export function profileFromForm(stored: Profile, values: ProfileFormValues): Pro
     ...stored,
     display_name: values.profileName,
     roots: values.roots,
+    unrestricted_access: values.unrestrictedAccess,
     port: number(values.port),
     host: advanced.host,
     max_concurrency: number(advanced.serverConcurrency),

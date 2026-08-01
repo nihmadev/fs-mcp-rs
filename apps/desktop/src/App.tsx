@@ -44,7 +44,8 @@ function App() {
     return <main className="desktop-stage" {...appearanceProps}><div className="startup-state"><Icon name="error" /><h1>Profiles could not be loaded</h1><p>{editor.profileError}</p><button className="primary-button" type="button" onClick={restoreDefaults}>Restore defaults</button></div></main>;
   }
 
-  const showOnboarding = setupRequested || !editor.profileState.profiles.find((profile) => profile.id === editor.profileState!.active_profile_id)?.roots.length;
+  const activeProfile = editor.profileState.profiles.find((profile) => profile.id === editor.profileState!.active_profile_id);
+  const showOnboarding = setupRequested || (!activeProfile?.unrestricted_access && !activeProfile?.roots.length);
   return (
     <main className="desktop-stage" {...appearanceProps}>
       {showOnboarding

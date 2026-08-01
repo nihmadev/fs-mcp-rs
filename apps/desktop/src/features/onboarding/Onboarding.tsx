@@ -57,7 +57,7 @@ export function Onboarding({ editor, theme, onComplete, browseForRoot }: Onboard
       <footer className="footer-actions">
         <button className="text-button" type="button" onClick={goBack} disabled={step === 0}>Back</button>
         <span>Step {step + 1} of 3</span>
-        <button className="primary-button" type="button" onClick={continueFlow} disabled={step === 1 && accessTab === "folder" && !editor.roots.length}>
+        <button className="primary-button" type="button" onClick={continueFlow} disabled={step === 1 && accessTab === "folder" && !editor.unrestrictedAccess && !editor.roots.length}>
           {step === 0 ? "Get started" : step === 2 ? "Create profile" : "Continue"}
         </button>
       </footer>
