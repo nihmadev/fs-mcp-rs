@@ -149,7 +149,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "benchmarks"
-version = "1.2.6"
+version = "1.2.7"
 dependencies = [
  "anyhow",
  "serde",
@@ -979,7 +979,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mcp-rs"
-version = "1.2.6"
+version = "1.2.7"
 dependencies = [
  "anyhow",
  "axum",
@@ -1003,7 +1003,7 @@ dependencies = [
 
 [[package]]
 name = "fs-mcp-rs-desktop"
-version = "1.2.6"
+version = "1.2.7"
 dependencies = [
  "anyhow",
  "axum",

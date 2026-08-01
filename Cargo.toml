@@ -1,6 +1,6 @@
 [package]
 name = "fs-mcp-rs"
-version = "1.2.6"
+version = "1.2.7"
 edition = "2024"
 rust-version = "1.85"
 description = "A fast, configurable filesystem MCP server with explicit root isolation and bounded I/O"
@@ -22,7 +22,7 @@ members = ["crates/benchmarks", "apps/desktop/src-tauri"]
 resolver = "2"
 
 [workspace.package]
-version = "1.2.6"
+version = "1.2.7"
 edition = "2024"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/nihmadev/fs-mcp-rs"

@@ -3,7 +3,10 @@
 //! Exposes `/mcp` HTTP POST endpoint, `/health` check, CORS middleware, and optional OAuth 2.0 / OIDC endpoints.
 
 use crate::{app::App, handler, oauth};
-use crate::protocol::Request as McpRequest;
+use crate::protocol::{
+    LATEST_PROTOCOL_VERSION, Request as McpRequest, SUPPORTED_PROTOCOL_VERSIONS,
+    negotiate_protocol,
+};
 use anyhow::Result;
 use axum::{
     Json, Router,
@@ -112,13 +115,14 @@ async fn root_get() -> impl IntoResponse {
 }
 
 async fn mcp_get() -> impl IntoResponse {
-    Json(json!({
-        "status": "ok",
-        "server": "fs-mcp-rs",
-        "version": env!("CARGO_PKG_VERSION"),
-        "transport": "http-post",
-        "endpoint": "/mcp"
-    }))
+    // Streamable HTTP GET is reserved for an SSE stream. This server has no
+    // server-initiated messages, so explicitly advertise that it is unsupported
+    // instead of returning a non-MCP JSON document to clients probing the endpoint.
+    (
+        StatusCode::METHOD_NOT_ALLOWED,
+        [("allow", "POST")],
+        Json(json!({"error": "GET is not supported; use POST for MCP messages"})),
+    )
 }
 
 /// Validates and dispatches one JSON-RPC request.
@@ -127,6 +131,21 @@ async fn handle(
     headers: HeaderMap,
     Json(request): Json<McpRequest>,
 ) -> HttpResponse {
+    if let Some(version) = headers
+        .get("mcp-protocol-version")
+        .and_then(|value| value.to_str().ok())
+        && !SUPPORTED_PROTOCOL_VERSIONS.contains(&version)
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": format!("unsupported MCP protocol version: {version}"),
+                "supportedVersions": SUPPORTED_PROTOCOL_VERSIONS,
+            })),
+        )
+            .into_response();
+    }
+
     if app.settings.oauth.require_auth {
         let auth_valid = headers
             .get("authorization")
@@ -145,8 +164,31 @@ async fn handle(
         }
     }
 
+    let requested_header_version = headers
+        .get("mcp-protocol-version")
+        .and_then(|value| value.to_str().ok());
+    let initialize = request.method == "initialize";
+    let negotiated = request
+        .params
+        .get("protocolVersion")
+        .and_then(serde_json::Value::as_str)
+        .map(|version| negotiate_protocol(Some(version)))
+        .or_else(|| requested_header_version.map(|version| negotiate_protocol(Some(version))))
+        .unwrap_or(LATEST_PROTOCOL_VERSION);
+
     match handler::handle_request(&app, request).await {
-        Some(response) => Json(response).into_response(),
+        Some(response) => {
+            let mut response = Json(response).into_response();
+            let response_version = if initialize {
+                negotiated
+            } else {
+                requested_header_version.unwrap_or(negotiated)
+            };
+            if let Ok(value) = HeaderValue::from_str(response_version) {
+                response.headers_mut().insert("mcp-protocol-version", value);
+            }
+            response
+        }
         None => StatusCode::ACCEPTED.into_response(),
     }
 }
